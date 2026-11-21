@@ -123,7 +123,11 @@
   .drow:last-child{border-bottom:none}
   .drow .k{color:var(--muted);font-size:13.5px;display:flex;align-items:center;gap:8px}
   .drow .v{font-size:16px;font-weight:640;font-variant-numeric:tabular-nums}
-  .drow .v small{font-size:11.5px;color:var(--muted);font-weight:500;margin-left:2px}
+  .drow .v small{font-size:11.5px;color:var(--muted);font-weight:500;margin-left:6px}
+  .sec{margin-top:6px}
+  .sec .sec-t{font-size:11.5px;font-weight:600;color:var(--muted);letter-spacing:.6px;
+    margin:14px 0 2px;display:flex;align-items:center;gap:8px}
+  .sec .sec-t::after{content:'';flex:1;height:1px;background:var(--line)}
   .kdot{width:7px;height:7px;border-radius:50%;flex:none}
   .empty-note{color:var(--muted);font-size:13px;text-align:center;padding:22px 0}
   /* ---------- states ---------- */
@@ -286,16 +290,10 @@ function renderToday(){
         <div class="hint">目标 ${fmtN(STEP_GOAL)} · 完成 ${Math.round(stepPct)}%</div>
       </div>
       <div class="card" data-day="${TODAY}">
-        <h2>静息心率</h2>
-        <div class="big" style="font-size:27px">${t.resting_hr ?? '--'}<small>bpm</small></div>
-        <div class="hint">${hrTone(t.resting_hr)}</div>
+        <h2><span>心率</span><span class="tag">${t.hr_min ?? '--'}–${t.hr_max ?? '--'}</span></h2>
+        <div class="big" style="font-size:27px">${t.hr_avg ?? '--'}<small>平均 bpm</small></div>
+        <div class="hint">静息 <b style="color:var(--ink);font-weight:600">${t.resting_hr ?? '--'}</b> bpm · ${hrTone(t.resting_hr)}</div>
       </div>
-    </div>
-
-    <div class="card" data-day="${TODAY}">
-      <h2><span>心率</span><span class="tag">${t.hr_min ?? '--'}–${t.hr_max ?? '--'} bpm</span></h2>
-      <div class="big" style="font-size:29px">${t.hr_avg ?? '--'}<small>平均 bpm</small></div>
-      <div class="hint">点一下看当天完整明细</div>
     </div>
 
     ${trendCard()}
@@ -397,30 +395,74 @@ function calendarCard(){
 }
 
 /* ---------------- 详情弹层 ---------------- */
+const STAGE = {
+  deep:  ['深睡', '#4550b8'],
+  core:  ['核心', '#6c7cf0'],
+  rem:   ['快速眼动', '#9aa6ff'],
+  awake: ['清醒', '#e8a24a'],
+  inBed: ['卧床', '#b9c2d4'],
+};
+const hmText = h => { const hh = Math.floor(h), mm = Math.round((h - hh) * 60); return `${hh} 小时 ${mm} 分`; };
+const clockOf = s => {
+  const m = String(s || '').match(/(\d{2}):(\d{2})/);
+  return m ? `${m[1]}:${m[2]}` : null;
+};
+
 function openSheet(key){
   const rec = dayMap[key] || {};
   const d = parseISO(key);
   selectedDay = key;
-  const [sh, sm] = fmtSleep(rec.sleep_hours);
-  const rows = [];
-  const row = (k, v, unit, color) => `<div class="drow"><span class="k">${color?`<i class="kdot" style="background:${color}"></i>`:''}${k}</span>
-    <span class="v">${v}${unit?`<small>${unit}</small>`:''}</span></div>`;
 
-  if (rec.sleep_hours != null){
-    rows.push(row('睡眠时长', `${sh}<small style="margin-left:3px">小时</small>${sm?` ${sm}`:''}`, '', 'var(--sleep)'));
+  const row = (k, v, unit, color) => `<div class="drow">
+    <span class="k">${color ? `<i class="kdot" style="background:${color}"></i>` : ''}${k}</span>
+    <span class="v">${v}${unit ? `<small>${unit}</small>` : ''}</span></div>`;
+  const sec = (title, rows) => rows.length
+    ? `<div class="sec"><div class="sec-t">${title}</div>${rows.join('')}</div>` : '';
+
+  /* 睡眠 */
+  const sleepRows = [];
+  if (rec.sleep_hours != null) sleepRows.push(row('总睡眠时长', hmText(rec.sleep_hours), '', 'var(--sleep)'));
+  const st = rec.sleep_stages || {};
+  const stSum = Object.values(st).filter(v => typeof v === 'number').reduce((a, b) => a + b, 0);
+  if (stSum > 0){
+    ['deep', 'core', 'rem', 'awake'].forEach(k => {
+      const v = st[k];
+      if (typeof v !== 'number' || v <= 0) return;
+      sleepRows.push(row(STAGE[k][0], hmText(v), `占 ${Math.round(v / stSum * 100)}%`, STAGE[k][1]));
+    });
   }
-  if (rec.steps != null) rows.push(row('步数', fmtN(rec.steps), '步', 'var(--steps)'));
-  if (rec.hr_avg != null) rows.push(row('心率', `${rec.hr_avg}（${rec.hr_min}–${rec.hr_max}）`, 'bpm', 'var(--hr)'));
-  if (rec.resting_hr != null) rows.push(row('静息心率', rec.resting_hr, 'bpm', 'var(--hr)'));
+  const w = rec.sleep_window;
+  if (Array.isArray(w) && w.length === 2){
+    const a = clockOf(w[0]), b = clockOf(w[1]);
+    if (a && b) sleepRows.push(row('入睡 – 起床', `${a} – ${b}`, ''));
+  }
+
+  /* 心率 */
+  const hrRows = [];
+  if (rec.hr_avg != null) hrRows.push(row('平均心率', rec.hr_avg, 'bpm', 'var(--hr)'));
+  if (rec.hr_min != null && rec.hr_max != null)
+    hrRows.push(row('区间', `${rec.hr_min} – ${rec.hr_max}`, 'bpm', ''));
+  if (rec.resting_hr != null) hrRows.push(row('静息心率', rec.resting_hr, 'bpm', ''));
+
+  /* 活动 */
+  const actRows = [];
+  if (rec.steps != null) actRows.push(row('步数', fmtN(rec.steps), '步', 'var(--steps)'));
+  const ACTIVITY = ['active_energy', 'walking_running_distance', 'flights_climbed'];
+  const others = [];
   Object.entries(rec.extras || {}).forEach(([k, v]) => {
-    const m = EXTRA_META[k] || {n:k, u:''};
-    rows.push(row(m.n, fmtN(v), m.u, ''));
+    const m = EXTRA_META[k] || { n: k, u: '' };
+    const r = row(m.n, fmtN(v), m.u, '');
+    (ACTIVITY.includes(k) ? actRows : others).push(r);
   });
 
+  const body = sec('睡眠', sleepRows) + sec('心率', hrRows) +
+               sec('活动', actRows) + sec('其他', others);
+  const empty = !sleepRows.length && !hrRows.length && !actRows.length && !others.length;
+
   $('#sheetBody').innerHTML = `
-    <h3>${d.getMonth()+1} 月 ${d.getDate()} 日 · ${WEEK[d.getDay()]}</h3>
+    <h3>${d.getMonth() + 1} 月 ${d.getDate()} 日 · ${WEEK[d.getDay()]}</h3>
     <div class="when">${rec.updated_at ? '数据更新于 ' + rec.updated_at : '这一天没有数据'}</div>
-    ${rows.length ? rows.join('') : '<div class="empty-note">这一天还没有收到数据</div>'}`;
+    ${empty ? '<div class="empty-note">这一天还没有收到数据</div>' : body}`;
   $('#sheet').classList.add('on');
   $('#mask').classList.add('on');
 }
