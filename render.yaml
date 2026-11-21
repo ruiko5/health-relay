@@ -3,6 +3,7 @@ services:
     name: health-relay
     runtime: python
     plan: free
+    region: singapore            # 国内访问比默认的 oregon 快很多
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /healthz
