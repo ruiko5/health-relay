@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: health-relay
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    envVars:
+      - key: INGEST_TOKEN
+        generateValue: true      # 自动生成上报口令
+      - key: VIEW_TOKEN
+        generateValue: true      # 自动生成查看口令
+      - key: PYTHON_VERSION
+        value: 3.12.6
