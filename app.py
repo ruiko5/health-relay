@@ -377,6 +377,33 @@ def days_api(request: Request, start: str = "", end: str = ""):
             "today": out[-1] if out else None, "days": out}
 
 
+@app.get("/api/export")
+def export_all(request: Request):
+    """全量导出（部署前自动备份用）。"""
+    if not _token_ok(request, VIEW_TOKEN):
+        return JSONResponse({"ok": False, "error": "bad token"}, status_code=401)
+    rows = STORE.all_rows()
+    return {"ok": True, "count": len(rows), "exported_at": _fmt_ts(time.time()),
+            "rows": rows}
+
+
+@app.post("/api/import")
+async def import_all(request: Request):
+    """全量恢复（部署后自动回灌用）。同一 (metric, ts) 覆盖。"""
+    if not _token_ok(request, INGEST_TOKEN):
+        return JSONResponse({"ok": False, "error": "bad token"}, status_code=401)
+    try:
+        payload = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "body must be JSON"}, status_code=400)
+    rows = payload.get("rows") or []
+    data = [(r.get("metric"), r.get("day"), r.get("ts"), r.get("value"),
+             r.get("extra"), r.get("recv") or time.time()) for r in rows if r.get("metric")]
+    n = STORE.upsert(data)
+    print(f"[import] restored {n} rows", flush=True)
+    return {"ok": True, "imported": n}
+
+
 @app.get("/api/raw")
 def raw(request: Request, limit: int = 30):
     if not _token_ok(request, VIEW_TOKEN):
@@ -413,7 +440,7 @@ def demo(request: Request):
 @app.get("/healthz")
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-22T0232"}
+    return {"ok": True, "rev": "2026-11-22T0248"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -480,6 +507,8 @@ def apple_icon():
 @app.get("/")
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
+
 
 
 
