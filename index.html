@@ -139,15 +139,6 @@
   .state p{color:var(--muted);font-size:13.5px;margin:10px 0 0;line-height:1.7}
   code{background:var(--chip);padding:1px 6px;border-radius:6px;font-size:12px}
   footer{text-align:center;font-size:11px;color:var(--muted);opacity:.8;margin-top:18px;line-height:1.9}
-  /* ---------- 安装提示 ---------- */
-  .installbar{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));
-    background:var(--card);border-radius:16px;box-shadow:0 8px 30px rgba(15,25,45,.18);
-    padding:12px 14px;display:flex;align-items:center;gap:10px;z-index:30;border:1px solid var(--line)}
-  .installbar p{margin:0;font-size:12.5px;color:var(--muted);flex:1;line-height:1.45}
-  .installbar p b{color:var(--ink);font-weight:600}
-  .installbar button{border:none;border-radius:11px;padding:8px 13px;font:inherit;font-size:13px;cursor:pointer}
-  .installbar .go{background:var(--sleep);color:#fff;font-weight:600}
-  .installbar .no{background:transparent;color:var(--muted);padding:8px 6px}
   .sk{height:13px;border-radius:7px;background:linear-gradient(90deg,var(--chip) 25%,var(--line) 37%,var(--chip) 63%);
     background-size:400% 100%;animation:sk 1.3s ease infinite}
   @keyframes sk{0%{background-position:100% 50%}100%{background-position:0 50%}}
@@ -176,12 +167,6 @@
     数据来自 Apple Watch，经 iPhone 自动上报<br>
     点任意一天可以看当天明细
   </footer>
-</div>
-
-<div class="installbar" id="installBar" hidden>
-  <p><b>装到桌面</b><br>点开就是全屏，不用记网址</p>
-  <button class="go" id="installGo">安装</button>
-  <button class="no" id="installNo">以后</button>
 </div>
 
 <div class="mask" id="mask"></div>
@@ -491,7 +476,8 @@ function openSheet(key){
   const others = [];
   Object.entries(rec.extras || {}).forEach(([k, v]) => {
     const m = EXTRA_META[k] || { n: k, u: '' };
-    const r = row(m.n, fmtN(v), m.u, '');
+    const num = v >= 100 ? Math.round(v) : Math.round(v * 10) / 10;
+    const r = row(m.n, fmtN(num), m.u, '');
     (ACTIVITY.includes(k) ? actRows : others).push(r);
   });
 
@@ -568,68 +554,26 @@ async function init(){
     $('#updated').textContent = auth ? '口令错误' : '连接异常';
   }
 }
-/* ---------------- PWA：装到桌面 ---------------- */
+
+/* ---------------- PWA ---------------- */
 (function setupPWA(){
   const link = document.createElement('link');
   link.rel = 'manifest';
   link.href = '/manifest.webmanifest?token=' + encodeURIComponent(TOKEN || '');
   document.head.appendChild(link);
-
   if ('serviceWorker' in navigator){
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
     });
   }
-
-  const bar = $('#installBar');
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  const installed = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-  const dismissed = localStorage.getItem('install-bar-dismissed') === '1';
-  let deferred = null;
-
-  window.addEventListener('beforeinstallprompt', e => {
-    e.preventDefault();
-    deferred = e;
-    if (!installed && !dismissed) bar.hidden = false;
-  });
-
-  $('#installGo').addEventListener('click', async () => {
-    if (isIOS){
-      alert('点下面的「分享」按钮 → 选「添加到主屏幕」\n\n（图标会出现在桌面，点开全屏无地址栏）');
-    } else if (deferred){
-      deferred.prompt();
-      try { await deferred.userChoice; } catch(e){}
-      deferred = null;
-    } else {
-      alert('在浏览器菜单里选「添加到主屏幕 / 安装应用」即可');
-    }
-    bar.hidden = true;
-  });
-  $('#installNo').addEventListener('click', () => {
-    bar.hidden = true;
-    localStorage.setItem('install-bar-dismissed', '1');
-  });
-
-  // iOS 没有 beforeinstallprompt，主动提示一次
-  if (isIOS && !installed && !dismissed){
-    setTimeout(() => { bar.hidden = false; $('#installGo').textContent = '怎么装'; }, 1600);
-  }
 })();
-
-async function refreshToday(){
-  try{
-    const fresh = await fetchRange(TODAY, TODAY);
-    if (fresh) renderToday();
-  }catch(e){ /* 离线时保持旧内容 */ }
-}
-
-// 每分钟自动刷一次今天的数据；从后台切回来也刷一次
-setInterval(refreshToday, 60 * 1000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshToday(); });
 
 init();
 </script>
 </body>
 </html>
+
+
+
 
 
