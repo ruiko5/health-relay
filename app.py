@@ -9,6 +9,7 @@
 import json
 import os
 import re
+import datetime
 import sqlite3
 import time
 from pathlib import Path
@@ -307,6 +308,92 @@ def summary(request: Request, days: int = 7):
     }
 
 
+@app.get("/api/days")
+def days_api(request: Request, start: str = "", end: str = ""):
+    """任意日期区间的按天数据（日历 / 趋势图 / 当日详情都用这个）。
+
+    /api/days?start=2026-11-01&end=2026-11-30&token=xxx
+    """
+    if not _token_ok(request, VIEW_TOKEN):
+        return JSONResponse({"ok": False, "error": "bad token"}, status_code=401)
+
+    def parse_day(s):
+        try:
+            return datetime.date.fromisoformat((s or "").strip())
+        except ValueError:
+            return None
+
+    end_d = parse_day(end) or datetime.date.today()
+    start_d = parse_day(start) or (end_d - datetime.timedelta(days=29))
+    if start_d > end_d:
+        start_d, end_d = end_d, start_d
+    start_d = max(start_d, end_d - datetime.timedelta(days=399))  # 最多 400 天
+
+    conn = db()
+    rows = conn.execute(
+        "SELECT metric, day, SUM(value), AVG(value), MIN(value), MAX(value), COUNT(*) "
+        "FROM samples WHERE day>=? AND day<=? GROUP BY metric, day",
+        (start_d.isoformat(), end_d.isoformat()),
+    ).fetchall()
+    ranges = {
+        day: (mn, mx)
+        for day, mn, mx in conn.execute(
+            "SELECT day, MIN(CAST(json_extract(extra,'$.min') AS REAL)), "
+            "MAX(CAST(json_extract(extra,'$.max') AS REAL)) "
+            "FROM samples WHERE metric='heart_rate' AND extra IS NOT NULL "
+            "AND day>=? AND day<=? GROUP BY day",
+            (start_d.isoformat(), end_d.isoformat()),
+        )
+    }
+    recv = {
+        day: ts
+        for day, ts in conn.execute(
+            "SELECT day, MAX(recv) FROM samples WHERE day>=? AND day<=? GROUP BY day",
+            (start_d.isoformat(), end_d.isoformat()),
+        )
+    }
+    conn.close()
+
+    agg = {}
+    for metric, day, total, avg, mn, mx, n in rows:
+        agg.setdefault(day, {})[metric] = {"sum": total, "avg": avg, "min": mn, "max": mx, "n": n}
+    for day, (mn, mx) in ranges.items():
+        hr = agg.setdefault(day, {}).setdefault(
+            "heart_rate", {"sum": 0, "avg": None, "min": None, "max": None, "n": 0})
+        if mn is not None:
+            hr["min"] = mn if hr["min"] is None else min(hr["min"], mn)
+        if mx is not None:
+            hr["max"] = mx if mx is None else max(hr["max"], mx)
+
+    known = {"steps", "sleep", "heart_rate", "resting_hr"}
+    out = []
+    for i in range((end_d - start_d).days + 1):
+        d = (start_d + datetime.timedelta(days=i)).isoformat()
+        m = agg.get(d, {})
+        sleep, hr, rhr, steps_ = m.get("sleep"), m.get("heart_rate"), m.get("resting_hr"), m.get("steps")
+        extras = {}
+        for k, v in m.items():
+            if k in known:
+                continue
+            if v.get("sum") is not None:
+                extras[k] = round(v["sum"], 1)
+        out.append({
+            "day": d,
+            "has_data": bool(m),
+            "steps": int(steps_["sum"]) if steps_ else None,
+            "sleep_hours": round(sleep["sum"], 2) if sleep else None,
+            "hr_avg": round(hr["avg"]) if hr and hr["avg"] is not None else None,
+            "hr_min": round(hr["min"]) if hr and hr["min"] is not None else None,
+            "hr_max": round(hr["max"]) if hr and hr["max"] is not None else None,
+            "resting_hr": round(rhr["avg"]) if rhr and rhr["avg"] is not None else None,
+            "extras": extras,
+            "updated_at": (time.strftime("%Y-%m-%d %H:%M", time.localtime(recv[d]))
+                           if d in recv and recv[d] else None),
+        })
+    return {"ok": True, "start": start_d.isoformat(), "end": end_d.isoformat(),
+            "today": out[-1] if out else None, "days": out}
+
+
 @app.get("/api/raw")
 def raw(request: Request, limit: int = 30):
     if not _token_ok(request, VIEW_TOKEN):
@@ -348,11 +435,13 @@ def demo(request: Request):
 @app.get("/healthz")
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-21T2336"}
+    return {"ok": True, "rev": "2026-11-22T0010"}
 
 
 @app.get("/")
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
+
 
 
