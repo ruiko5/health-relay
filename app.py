@@ -13,6 +13,7 @@ import datetime
 import sqlite3
 import time
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -435,12 +436,75 @@ def demo(request: Request):
 @app.get("/healthz")
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-22T0010"}
+    return {"ok": True, "rev": "2026-11-22T0038"}
+
+
+# ---------------------------------------------------------------- PWA
+@app.get("/manifest.webmanifest")
+def manifest(request: Request, token: str = ""):
+    """PWA 清单：start_url 里带上查看口令，装到桌面后打开就直接进看板。"""
+    t = (token or VIEW_TOKEN or "").strip()
+    start = "/?src=pwa" + (f"&token={quote(t)}" if t else "")
+    return JSONResponse(
+        {
+            "name": "健康日报",
+            "short_name": "健康日报",
+            "description": "Apple Watch 睡眠、步数、心率的每日看板",
+            "lang": "zh-CN",
+            "start_url": start,
+            "scope": "/",
+            "display": "standalone",
+            "background_color": "#f2f5fa",
+            "theme_color": "#6c7cf0",
+            "orientation": "portrait",
+            "icons": [
+                {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+                {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+                {"src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
+            ],
+        },
+        media_type="application/manifest+json",
+    )
+
+
+@app.get("/sw.js", include_in_schema=False)
+def service_worker():
+    resp = FileResponse(BASE / "sw.js", media_type="application/javascript; charset=utf-8")
+    resp.headers["Service-Worker-Allowed"] = "/"
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
+def _png(name: str):
+    return FileResponse(BASE / name, media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=604800"})
+
+
+@app.get("/icon-192.png", include_in_schema=False)
+def icon192():
+    return _png("icon-192.png")
+
+
+@app.get("/icon-512.png", include_in_schema=False)
+def icon512():
+    return _png("icon-512.png")
+
+
+@app.get("/icon-maskable-512.png", include_in_schema=False)
+def icon_maskable():
+    return _png("icon-maskable-512.png")
+
+
+@app.get("/apple-touch-icon.png", include_in_schema=False)
+def apple_icon():
+    return _png("apple-touch-icon.png")
 
 
 @app.get("/")
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
+
 
 
 
