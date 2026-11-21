@@ -98,6 +98,11 @@ def _num(v):
         return None
 
 
+def _scaled(v, scale: float):
+    n = _num(v)
+    return None if n is None else round(n * scale, 4)
+
+
 def parse(payload):
     """兼容三种格式：Health Auto Export、扁平 JSON、数组。返回 [{metric, day, ts, value, extra}]"""
     out = []
@@ -129,6 +134,13 @@ def parse(payload):
         if not isinstance(m, dict):
             continue
         name, rows = m.get("name"), m.get("data") or []
+        # 单位换算：Health Auto Export 可能按千焦(kJ)/英里导出，统一换成千卡(kcal)/公里(km)
+        units = str(m.get("units") or "").strip().lower()
+        scale = 1.0
+        if units in ("kj", "kilojoule", "kilojoules", "千焦", "千焦耳"):
+            scale = 1 / 4.184
+        elif units in ("mi", "mile", "miles", "英里"):
+            scale = 1.60934
         for row in rows:
             if not isinstance(row, dict):
                 continue
@@ -151,9 +163,10 @@ def parse(payload):
                     extra["window"] = [str(start), str(end)]
                 add("sleep", ts, v, extra or None)
             elif "Avg" in row or "Min" in row or "Max" in row:
-                add(name, ts, row.get("Avg", row.get("qty")), {"min": row.get("Min"), "max": row.get("Max")})
+                add(name, ts, _scaled(row.get("Avg", row.get("qty")), scale),
+                    {"min": _scaled(row.get("Min"), scale), "max": _scaled(row.get("Max"), scale)})
             else:
-                add(name, ts, row.get("qty", row.get("value")))
+                add(name, ts, _scaled(row.get("qty", row.get("value")), scale))
 
     # 格式 2：扁平 {"date": "...", "heart_rate": 62, "steps": 8000, "sleep_hours": 7.5}
     if not metrics and isinstance(payload, dict):
@@ -482,7 +495,7 @@ def demo(request: Request):
 @app.get("/healthz")
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-22T0125"}
+    return {"ok": True, "rev": "2026-11-22T0140"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -549,6 +562,7 @@ def apple_icon():
 @app.get("/")
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
 
 
 
