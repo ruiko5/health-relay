@@ -139,7 +139,9 @@ def parse(payload):
         flat = {"sleep_hours": "sleep", "sleep": "sleep", "steps": "steps",
                 "heart_rate": "heart_rate", "hr": "heart_rate", "resting_hr": "resting_hr"}
         for k, v in payload.items():
-            if k in flat:
+            if k == "sleep_minutes":  # 快捷指令里算出来的是分钟
+                add("sleep", ts, _num(v) / 60 if _num(v) is not None else None)
+            elif k in flat:
                 add(flat[k], ts, v)
 
     # 格式 3：[{"metric": "steps", "value": 8000, "date": "..."}]
@@ -187,6 +189,14 @@ async def ingest(request: Request):
         return JSONResponse({"ok": False, "error": "body must be JSON"}, status_code=400)
 
     samples = parse(payload)
+    if not samples:
+        # 没解析出样本时，把原始报文写进日志（Render 的 Logs 里能看到），
+        # 方便换成别的上报 App 后照着它的真实格式补解析规则。
+        try:
+            raw = json.dumps(payload, ensure_ascii=False)
+        except Exception:
+            raw = str(payload)
+        print(f"[ingest] unparsed payload ({len(raw)}B): {raw[:1200]}", flush=True)
     if samples:
         conn = db()
         with conn:
