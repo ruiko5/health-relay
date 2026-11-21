@@ -56,6 +56,9 @@
   .bar>i{display:block;height:100%;border-radius:8px;transition:width .6s cubic-bezier(.2,.8,.2,1)}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
   .grid2 .card{margin:0}
+  .notice{font-size:12.5px;line-height:1.65;color:var(--muted);background:var(--chip);
+    border:1px solid var(--line);padding:13px 15px}
+  .notice b{color:var(--ink);font-weight:600}
   /* ---------- hero ---------- */
   .hero{padding:18px 18px 16px}
   .hero .row{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
@@ -74,8 +77,8 @@
   .bcol.sleep .b{background:linear-gradient(180deg,var(--sleep2),var(--sleep))}
   .bcol:active .b{filter:brightness(.94);transform:scaleY(.98)}
   .bcol.empty .b{background:var(--line)}
-  .axis{display:flex;justify-content:space-between;margin-top:6px;font-size:10.5px;color:var(--muted)}
-  .axis span{flex:1;text-align:center}
+  .axis{display:flex;gap:6px;margin-top:6px;font-size:10.5px;color:var(--muted)}
+  .axis span{flex:1;text-align:center;min-width:0;overflow:hidden}
   .avgrow{display:flex;gap:10px;margin-top:12px}
   .avg{flex:1;background:var(--chip);border-radius:12px;padding:9px 11px}
   .avg em{display:block;font-style:normal;font-size:11px;color:var(--muted);margin-bottom:2px}
@@ -222,6 +225,7 @@ const hrTone = v => v == null ? '--' : (v < 60 ? '偏低' : v <= 75 ? '正常范
 
 /* ---------------- 数据 ---------------- */
 async function fetchRange(start, end){
+  if (covered(start, end)) return null;
   const r = await fetch(`/api/days?start=${start}&end=${end}&token=${encodeURIComponent(TOKEN)}`);
   if (r.status === 401) throw new Error('AUTH');
   if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -235,12 +239,48 @@ function covered(start, end){
 }
 
 /* ---------------- 今日 ---------------- */
+function latestWithData(){
+  const base = parseISO(TODAY);
+  for (let i = 1; i <= 34; i++){
+    const k = iso(new Date(base.getFullYear(), base.getMonth(), base.getDate() - i));
+    const r = dayMap[k];
+    if (r && r.has_data) return r;
+  }
+  return null;
+}
+
+function agoText(ts){
+  if (!ts) return '';
+  const dt = new Date(String(ts).replace(' ', 'T'));
+  if (isNaN(dt)) return ts.slice(5);
+  const min = Math.round((Date.now() - dt.getTime()) / 60000);
+  if (min < 1) return '刚刚';
+  if (min < 60) return min + ' 分钟前';
+  const h = Math.round(min / 60);
+  if (h < 24) return h + ' 小时前';
+  return Math.round(h / 24) + ' 天前';
+}
+
 function renderToday(){
-  const t = dayMap[TODAY] || {};
-  const d = parseISO(TODAY);
-  $('#todayLabel').textContent = `${d.getMonth()+1} 月 ${d.getDate()} 日 · ${WEEK[d.getDay()]}`;
+  const todayRec = dayMap[TODAY];
+  // 今天还没同步时，退回「最近一个有数据的那天」，页面不会白屏
+  const t = (todayRec && todayRec.has_data) ? todayRec : latestWithData();
+
+  if (!t){
+    $('#todayLabel').textContent = '暂无数据';
+    $('#updated').textContent = '等待上报';
+    $('#dot').className = 'dot stale';
+    $('#app').innerHTML = `<div class="card state"><div class="emo">🌙</div>
+      <p>还没有收到任何数据。<br>在 iPhone 的 App 里点一次「手动上传」试试。</p></div>`;
+    return;
+  }
+
+  const isToday = t.day === TODAY;
+  const d = parseISO(t.day);
   const up = t.updated_at || '';
-  $('#updated').textContent = up ? '更新 ' + up.slice(5) : '暂无数据';
+  $('#todayLabel').textContent = `${d.getMonth()+1} 月 ${d.getDate()} 日 · ${WEEK[d.getDay()]}` +
+    (isToday ? '' : '（今天还没同步）');
+  $('#updated').textContent = up ? agoText(up) + '同步' : '暂无数据';
   $('#dot').className = 'dot' + (up ? '' : ' stale');
 
   const [sh, sm] = fmtSleep(t.sleep_hours);
@@ -253,16 +293,16 @@ function renderToday(){
     (Math.abs(diff) < 0.05 ? '和前晚差不多' :
      (diff > 0 ? `比前晚多睡 ${Math.round(diff*60)} 分钟` : `比前晚少睡 ${Math.round(-diff*60)} 分钟`));
 
-  if (!t.has_data){
-    $('#app').innerHTML = `<div class="card state"><div class="emo">🌙</div>
-      <p>还没有收到今天的数据。<br>等 iPhone 下次自动上报后刷新即可。</p></div>`;
-    return;
-  }
-
+  const dayKey = t.day;
   const C = 2 * Math.PI * 32;
   $('#app').innerHTML = `
-    <div class="card hero">
-      <h2><span>昨晚睡眠</span><span class="tag">目标 ${SLEEP_GOAL} 小时</span></h2>
+    ${isToday ? '' : `<div class="card notice" data-day="${dayKey}">
+      <b>今天还没有新数据</b>，下面显示的是 ${d.getMonth()+1} 月 ${d.getDate()} 日的数据。
+      等下一次自动同步（或点 App 里的「手动上传」）就会更新。
+    </div>`}
+    <div class="card hero" data-day="${dayKey}">
+      <h2><span>${isToday ? '昨晚睡眠' : `${d.getMonth()+1} 月 ${d.getDate()} 日睡眠`}</span>
+        <span class="tag">目标 ${SLEEP_GOAL} 小时</span></h2>
       <div class="row">
         <div>
           <div class="big">${sh}<small>小时</small>${sm ? `<small style="margin-left:6px">${sm}</small>` : ''}</div>
@@ -283,13 +323,13 @@ function renderToday(){
     </div>
 
     <div class="grid2">
-      <div class="card" data-day="${TODAY}">
+      <div class="card" data-day="${dayKey}">
         <h2>步数</h2>
         <div class="big" style="font-size:27px">${fmtN(t.steps)}<small>步</small></div>
         <div class="bar"><i style="width:${stepPct}%;background:linear-gradient(90deg,var(--steps2),var(--steps))"></i></div>
         <div class="hint">目标 ${fmtN(STEP_GOAL)} · 完成 ${Math.round(stepPct)}%</div>
       </div>
-      <div class="card" data-day="${TODAY}">
+      <div class="card" data-day="${dayKey}">
         <h2><span>心率</span><span class="tag">${t.hr_min ?? '--'}–${t.hr_max ?? '--'}</span></h2>
         <div class="big" style="font-size:27px">${t.hr_avg ?? '--'}<small>平均 bpm</small></div>
         <div class="hint">静息 <b style="color:var(--ink);font-weight:600">${t.resting_hr ?? '--'}</b> bpm · ${hrTone(t.resting_hr)}</div>
@@ -575,6 +615,17 @@ async function init(){
     setTimeout(() => { bar.hidden = false; $('#installGo').textContent = '怎么装'; }, 1600);
   }
 })();
+
+async function refreshToday(){
+  try{
+    const fresh = await fetchRange(TODAY, TODAY);
+    if (fresh) renderToday();
+  }catch(e){ /* 离线时保持旧内容 */ }
+}
+
+// 每分钟自动刷一次今天的数据；从后台切回来也刷一次
+setInterval(refreshToday, 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshToday(); });
 
 init();
 </script>
