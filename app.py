@@ -127,9 +127,18 @@ def parse(payload):
                 v = row.get("totalSleep")
                 if v is None:
                     v = row.get("asleep")
-                if v is None and row.get("sleepStart") and row.get("sleepEnd"):
-                    v = _hours(row["sleepStart"], row["sleepEnd"])
-                add("sleep", ts, v, {"stages": {k: row.get(k) for k in ("deep", "core", "rem")}})
+                start, end = row.get("sleepStart") or row.get("start"), row.get("sleepEnd") or row.get("end")
+                if v is None and start and end:
+                    v = _hours(start, end)
+                # 阶段时长（深睡/核心/REM/清醒）留着给前端画睡眠结构
+                stages = {k: row.get(k) for k in ("deep", "core", "rem", "awake", "inBed")}
+                stages = {k: val for k, val in stages.items() if val is not None}
+                extra = {}
+                if stages:
+                    extra["stages"] = stages
+                if start and end:
+                    extra["window"] = [str(start), str(end)]
+                add("sleep", ts, v, extra or None)
             elif "Avg" in row or "Min" in row or "Max" in row:
                 add(name, ts, row.get("Avg", row.get("qty")), {"min": row.get("Min"), "max": row.get("Max")})
             else:
@@ -353,6 +362,24 @@ def days_api(request: Request, start: str = "", end: str = ""):
             (start_d.isoformat(), end_d.isoformat()),
         )
     }
+    # 睡眠阶段（深睡/核心/REM/清醒）时长与入睡-起床窗口，从 extra 里汇总
+    sleep_extra = {}
+    for day, ex_json in conn.execute(
+        "SELECT day, extra FROM samples WHERE metric='sleep' AND extra IS NOT NULL "
+        "AND day>=? AND day<=?",
+        (start_d.isoformat(), end_d.isoformat()),
+    ):
+        try:
+            ex = json.loads(ex_json)
+        except (TypeError, ValueError):
+            continue
+        cur = sleep_extra.setdefault(day, {"stages": {}, "window": None})
+        for k, v in (ex.get("stages") or {}).items():
+            if isinstance(v, (int, float)):
+                cur["stages"][k] = round(cur["stages"].get(k, 0) + v, 2)
+        w = ex.get("window")
+        if isinstance(w, list) and len(w) == 2:
+            cur["window"] = w
     conn.close()
 
     agg = {}
@@ -383,6 +410,8 @@ def days_api(request: Request, start: str = "", end: str = ""):
             "has_data": bool(m),
             "steps": int(steps_["sum"]) if steps_ else None,
             "sleep_hours": round(sleep["sum"], 2) if sleep else None,
+            "sleep_stages": (sleep_extra.get(d) or {}).get("stages") or {},
+            "sleep_window": (sleep_extra.get(d) or {}).get("window"),
             "hr_avg": round(hr["avg"]) if hr and hr["avg"] is not None else None,
             "hr_min": round(hr["min"]) if hr and hr["min"] is not None else None,
             "hr_max": round(hr["max"]) if hr and hr["max"] is not None else None,
@@ -418,11 +447,17 @@ def demo(request: Request):
     with conn:
         for i in range(7):
             day = time.strftime("%Y-%m-%d", time.localtime(time.time() - i * 86400))
+            total = round(random.uniform(6.2, 8.6), 2)
+            stages = {"deep": round(total * 0.22, 2), "core": round(total * 0.55, 2),
+                      "rem": round(total * 0.20, 2), "awake": round(total * 0.03, 2)}
+            window = [f"{day} 23:{random.randint(10, 55)}:00 +0800",
+                      f"{day} 07:{random.randint(0, 40):02d}:00 +0800"]
             conn.execute("DELETE FROM samples WHERE day=?", (day,))
             conn.executemany(
                 "INSERT OR REPLACE INTO samples(metric,day,ts,value,extra,recv) VALUES(?,?,?,?,?,?)",
                 [
-                    ("sleep", day, f"{day} 07:00:00 +0800", round(random.uniform(6.2, 8.6), 2), None, time.time()),
+                    ("sleep", day, f"{day} 07:00:00 +0800", total,
+                     json.dumps({"stages": stages, "window": window}), time.time()),
                     ("steps", day, f"{day} 22:00:00 +0800", random.randint(3200, 12000), None, time.time()),
                     ("heart_rate", day, f"{day} 12:00:00 +0800", random.randint(64, 82),
                      json.dumps({"min": random.randint(48, 56), "max": random.randint(110, 145)}), time.time()),
@@ -436,7 +471,7 @@ def demo(request: Request):
 @app.get("/healthz")
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-22T0038"}
+    return {"ok": True, "rev": "2026-11-22T0105"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -503,6 +538,7 @@ def apple_icon():
 @app.get("/")
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
 
 
 
