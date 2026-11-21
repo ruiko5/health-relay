@@ -324,9 +324,11 @@ def demo(request: Request):
 
 @app.get("/healthz")
 def healthz():
-    return {"ok": True}
+    # rev 用来确认线上跑的是哪一版（排查部署是否生效）
+    return {"ok": True, "rev": "2026-11-21T2322"}
 
 
 @app.get("/")
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
