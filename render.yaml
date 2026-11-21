@@ -4,6 +4,7 @@ services:
     runtime: python
     plan: free
     region: singapore            # 国内访问比默认的 oregon 快很多
+    autoDeploy: true             # 每次 push 到 main 自动重新部署
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /healthz
