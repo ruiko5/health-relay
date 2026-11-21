@@ -117,9 +117,18 @@ class Store:
         conn.close()
         return rows
 
+    def all_rows(self):
+        conn = self.connect()
+        cur = conn.cursor()
+        cur.execute("SELECT metric, day, ts, value, extra, recv FROM samples ORDER BY day, metric, ts")
+        rows = self._rows(cur)
+        conn.close()
+        return rows
+
     def count(self):
         conn = self.connect()
         cur = conn.cursor()
         n = cur.execute("SELECT COUNT(*) FROM samples").fetchone()[0]
         conn.close()
         return n
+
