@@ -183,6 +183,13 @@ Vercel 的免费层是纯 Serverless、没有持久存储：每次请求可能�
 
 ## 变更记录
 
+**2026-11-22（睡眠结构 + 探活）**
+
+- 今日卡片把「静息心率」合并进「心率」卡（平均 + 区间 + 静息一行看完）
+- 当日详情分节：**睡眠 / 心率 / 活动 / 其他**；睡眠里显示总时长、深睡/核心/快速眼动/清醒的时长与占比、入睡–起床时间（数据里有才显示）
+- 后端解析睡眠阶段（`deep/core/rem/awake`）与睡眠窗口，通过 `/api/days` 的 `sleep_stages`、`sleep_window` 暴露
+- 免费探活：`keepalive.bat` + Windows 计划任务「HealthRelayKeepAlive」每 10 分钟访问 `/healthz`，避免免费实例休眠（`deploy_github_curl.py` 里的 `.github/workflows/keepalive.yml` 需要带 `workflow` 权限的 token 才能推送，暂用本机任务代替）
+
 **2026-11-22（看板改版）**
 
 - 前端重做：今日睡眠环形进度、步数/静息心率双卡、心率区间卡
