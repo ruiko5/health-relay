@@ -178,12 +178,24 @@ def _clean(token: str) -> str:
 
 
 def _got_token(request: Request) -> str:
-    return _clean(
+    got = _clean(
         request.query_params.get("token")
         or request.headers.get("x-auth-token")
         or request.headers.get("x-api-key")
         or request.headers.get("authorization", "")
     )
+    if got:
+        return got
+    # 兜底：有些 App 的「请求头」是两个格子（键/值），很容易把口令填进「键」里，
+    # 于是发出来的请求头名字就是口令本身、值为空。这种情况也认，
+    # 并在日志里提示一次正确的写法（口令本身仍是唯一凭据，安全性不变）。
+    for name in request.headers.keys():
+        v = _clean(name)
+        if v and (v == INGEST_TOKEN or v == VIEW_TOKEN):
+            print(f"[auth] 口令被误填到「键」栏（header 名={_mask(v)}），"
+                  f"请改成 键 X-Auth-Token / 值 {_mask(v)}", flush=True)
+            return v
+    return ""
 
 
 def _mask(token: str) -> str:
@@ -336,10 +348,11 @@ def demo(request: Request):
 @app.get("/healthz")
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-21T2322"}
+    return {"ok": True, "rev": "2026-11-21T2336"}
 
 
 @app.get("/")
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
 
