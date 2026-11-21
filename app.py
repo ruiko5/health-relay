@@ -10,10 +10,11 @@ import json
 import os
 import re
 import datetime
-import sqlite3
 import time
 from pathlib import Path
 from urllib.parse import quote
+
+from store import Store
 
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -47,40 +48,67 @@ app = FastAPI(title="HealthRelay MVP")
 
 
 # ---------------------------------------------------------------- storage
-def db():
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, timeout=10)
-    # 建表、迁移、建索引放在一个事务里：中途异常会整体回滚，不会留下半迁移的库
-    with conn:
-        conn.execute(
-            """CREATE TABLE IF NOT EXISTS samples(
-                   id     INTEGER PRIMARY KEY AUTOINCREMENT,
-                   metric TEXT NOT NULL,
-                   day    TEXT NOT NULL,
-                   ts     TEXT NOT NULL,
-                   value  REAL,
-                   extra  TEXT,
-                   recv   REAL)"""
-        )
-        # 同一「指标 + 时刻」只保留最后一次上报（Health Auto Export 会把最近 7 天重叠重发，
-        # 而且当天还没过完时同一个时间戳的累计值会不断变大 —— 后写覆盖才不会把步数累加成两倍）
-        ver = conn.execute("PRAGMA user_version").fetchone()[0]
-        if ver < 2:
-            # 旧库：唯一索引含 value、可能已有同一时刻的多行 → 先去重（保留最新一行）
-            conn.execute("DROP INDEX IF EXISTS uq_sample")
-            conn.execute(
-                "DELETE FROM samples WHERE id NOT IN (SELECT MAX(id) FROM samples GROUP BY metric, ts)"
-            )
-        conn.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS uq_sample ON samples(metric, ts)"
-        )
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_day ON samples(metric, day)")
-        if ver < 2:
-            conn.execute("PRAGMA user_version = 2")
-    return conn
+STORE = Store(DATA_DIR)
 
 
-# ---------------------------------------------------------------- parsing
+@app.on_event("startup")
+def _init_store():
+    """启动时建表（SQLite 自动迁移；Postgres 首次自动建表）。"""
+    STORE.init()
+
+
+def _aggregate(rows):
+    """按 (day, metric) 聚合：sum / count / avg，并合并心率自带 min/max。
+
+    SQL 只负责取原始行，聚合放在 Python 里做，SQLite 和 Postgres 共用一套逻辑。
+    """
+    days, hr_range, recv = {}, {}, {}
+    for r in rows:
+        day, metric, v = r["day"], r["metric"], r["value"]
+        if v is not None:
+            a = days.setdefault(day, {}).setdefault(metric, {"sum": 0.0, "n": 0})
+            a["sum"] += v
+            a["n"] += 1
+        if r.get("recv"):
+            recv[day] = max(recv.get(day, 0), r["recv"])
+        if metric == "heart_rate" and r.get("extra"):
+            try:
+                ex = json.loads(r["extra"])
+            except (TypeError, ValueError):
+                ex = {}
+            mn, mx = ex.get("min"), ex.get("max")
+            cur = hr_range.setdefault(day, [None, None])
+            if isinstance(mn, (int, float)):
+                cur[0] = mn if cur[0] is None else min(cur[0], mn)
+            if isinstance(mx, (int, float)):
+                cur[1] = mx if cur[1] is None else max(cur[1], mx)
+    for day, (mn, mx) in hr_range.items():
+        hr = days.setdefault(day, {}).setdefault("heart_rate", {"sum": 0.0, "n": 0})
+        hr["min"], hr["max"] = mn, mx
+    return days, recv
+
+
+def _day_out(day: str, m: dict, recv: dict):
+    sleep, hr, rhr, steps = m.get("sleep"), m.get("heart_rate"), m.get("resting_hr"), m.get("steps")
+    extras = {}
+    for k, v in m.items():
+        if k in ("steps", "sleep", "heart_rate", "resting_hr"):
+            continue
+        extras[k] = round(v["sum"], 1)
+    return {
+        "day": day,
+        "has_data": bool(m),
+        "steps": int(steps["sum"]) if steps else None,
+        "sleep_hours": round(sleep["sum"], 2) if sleep else None,
+        "sleep_stages": {},
+        "sleep_window": None,
+        "hr_avg": round(hr["sum"] / hr["n"]) if hr and hr.get("n") else None,
+        "hr_min": round(hr["min"]) if hr and hr.get("min") is not None else None,
+        "hr_max": round(hr["max"]) if hr and hr.get("max") is not None else None,
+        "resting_hr": round(rhr["sum"] / rhr["n"]) if rhr and rhr.get("n") else None,
+        "extras": extras,
+        "updated_at": _fmt_ts(recv[day], "%Y-%m-%d %H:%M") if recv.get(day) else None,
+    }# ---------------------------------------------------------------- parsing
 def today() -> str:
     return _now().strftime("%Y-%m-%d")
 
@@ -271,13 +299,8 @@ async def ingest(request: Request):
             raw = str(payload)
         print(f"[ingest] unparsed payload ({len(raw)}B): {raw[:1200]}", flush=True)
     if samples:
-        conn = db()
-        with conn:
-            conn.executemany(
-                "INSERT OR REPLACE INTO samples(metric,day,ts,value,extra,recv) VALUES(?,?,?,?,?,?)",
-                [(s["metric"], s["day"], s["ts"], s["value"], s["extra"], time.time()) for s in samples],
-            )
-        conn.close()
+        STORE.upsert([(s["metric"], s["day"], s["ts"], s["value"], s["extra"], time.time())
+                      for s in samples])
     return {"ok": True, "stored": len(samples), "metrics": sorted({s["metric"] for s in samples})}
 
 
@@ -286,60 +309,19 @@ def summary(request: Request, days: int = 7):
     if not _token_ok(request, VIEW_TOKEN):
         return JSONResponse({"ok": False, "error": "bad token"}, status_code=401)
     days = max(1, min(days, 60))
-    conn = db()
-    rows = conn.execute(
-        "SELECT metric, day, SUM(value), AVG(value), MIN(value), MAX(value), COUNT(*) "
-        "FROM samples GROUP BY metric, day"
-    ).fetchall()
-    updated = conn.execute("SELECT MAX(recv) FROM samples").fetchone()[0]
-    # 心率样本若自带 Min/Max（Health Auto Export 的聚合格式），一并纳入区间
-    ranges = {}
-    for day, mn, mx in conn.execute(
-        "SELECT day, MIN(CAST(json_extract(extra,'$.min') AS REAL)), "
-        "MAX(CAST(json_extract(extra,'$.max') AS REAL)) "
-        "FROM samples WHERE metric='heart_rate' AND extra IS NOT NULL GROUP BY day"
-    ):
-        ranges[day] = (mn, mx)
-    conn.close()
-
-    agg = {}
-    for metric, day, total, avg, mn, mx, n in rows:
-        agg.setdefault(day, {})[metric] = {"sum": total, "avg": avg, "min": mn, "max": mx, "n": n}
-    for day, (mn, mx) in ranges.items():
-        hr = agg.setdefault(day, {}).setdefault("heart_rate", {"sum": 0, "avg": None, "min": None, "max": None, "n": 0})
-        if mn is not None:
-            hr["min"] = mn if hr["min"] is None else min(hr["min"], mn)
-        if mx is not None:
-            hr["max"] = mx if hr["max"] is None else max(hr["max"], mx)
-
-    # 补齐空白日期，前端画图不用处理空洞
-    out, now = [], _now()
+    now = _now()
+    rows = STORE.range_rows((now - datetime.timedelta(days=days - 1)).strftime("%Y-%m-%d"),
+                            now.strftime("%Y-%m-%d"))
+    agg, recv = _aggregate(rows)
+    out = []
     for i in range(days - 1, -1, -1):
         day = (now - datetime.timedelta(days=i)).strftime("%Y-%m-%d")
-        m = agg.get(day, {})
-        sleep = m.get("sleep")
-        hr = m.get("heart_rate")
-        rhr = m.get("resting_hr")
-        steps = m.get("steps")
-        out.append(
-            {
-                "day": day,
-                # 睡眠用 SUM：Days 聚合时一天只有一行（等于最大/总和），
-                # Hours 聚合或多段睡眠（夜睡 + 午睡）时求和才是真实的当日总睡眠
-                "sleep_hours": round(sleep["sum"], 2) if sleep else None,
-                "steps": int(steps["sum"]) if steps else None,
-                "hr_avg": round(hr["avg"]) if hr else None,
-                "hr_min": round(hr["min"]) if hr else None,
-                "hr_max": round(hr["max"]) if hr else None,
-                "resting_hr": round(rhr["avg"]) if rhr else None,
-            }
-        )
-    return {
-        "ok": True,
-        "today": out[-1],
-        "days": out,
-        "updated_at": _fmt_ts(updated) if updated else None,
-    }
+        item = _day_out(day, agg.get(day, {}), recv)
+        out.append({k: item[k] for k in
+                    ("day", "sleep_hours", "steps", "hr_avg", "hr_min", "hr_max", "resting_hr")})
+    updated = max(recv.values()) if recv else None
+    return {"ok": True, "today": out[-1], "days": out,
+            "updated_at": _fmt_ts(updated) if updated else None}
 
 
 @app.get("/api/days")
@@ -363,87 +345,34 @@ def days_api(request: Request, start: str = "", end: str = ""):
         start_d, end_d = end_d, start_d
     start_d = max(start_d, end_d - datetime.timedelta(days=399))  # 最多 400 天
 
-    conn = db()
-    rows = conn.execute(
-        "SELECT metric, day, SUM(value), AVG(value), MIN(value), MAX(value), COUNT(*) "
-        "FROM samples WHERE day>=? AND day<=? GROUP BY metric, day",
-        (start_d.isoformat(), end_d.isoformat()),
-    ).fetchall()
-    ranges = {
-        day: (mn, mx)
-        for day, mn, mx in conn.execute(
-            "SELECT day, MIN(CAST(json_extract(extra,'$.min') AS REAL)), "
-            "MAX(CAST(json_extract(extra,'$.max') AS REAL)) "
-            "FROM samples WHERE metric='heart_rate' AND extra IS NOT NULL "
-            "AND day>=? AND day<=? GROUP BY day",
-            (start_d.isoformat(), end_d.isoformat()),
-        )
-    }
-    recv = {
-        day: ts
-        for day, ts in conn.execute(
-            "SELECT day, MAX(recv) FROM samples WHERE day>=? AND day<=? GROUP BY day",
-            (start_d.isoformat(), end_d.isoformat()),
-        )
-    }
-    # 睡眠阶段（深睡/核心/REM/清醒）时长与入睡-起床窗口，从 extra 里汇总
+    rows = STORE.range_rows(start_d.isoformat(), end_d.isoformat())
+    agg, recv = _aggregate(rows)
+
+    # 睡眠阶段（深睡/核心/REM/清醒）与入睡-起床窗口
     sleep_extra = {}
-    for day, ex_json in conn.execute(
-        "SELECT day, extra FROM samples WHERE metric='sleep' AND extra IS NOT NULL "
-        "AND day>=? AND day<=?",
-        (start_d.isoformat(), end_d.isoformat()),
-    ):
+    for r in rows:
+        if r["metric"] != "sleep" or not r.get("extra"):
+            continue
         try:
-            ex = json.loads(ex_json)
+            ex = json.loads(r["extra"])
         except (TypeError, ValueError):
             continue
-        cur = sleep_extra.setdefault(day, {"stages": {}, "window": None})
+        cur = sleep_extra.setdefault(r["day"], {"stages": {}, "window": None})
         for k, v in (ex.get("stages") or {}).items():
             if isinstance(v, (int, float)):
                 cur["stages"][k] = round(cur["stages"].get(k, 0) + v, 2)
         w = ex.get("window")
         if isinstance(w, list) and len(w) == 2:
             cur["window"] = w
-    conn.close()
 
-    agg = {}
-    for metric, day, total, avg, mn, mx, n in rows:
-        agg.setdefault(day, {})[metric] = {"sum": total, "avg": avg, "min": mn, "max": mx, "n": n}
-    for day, (mn, mx) in ranges.items():
-        hr = agg.setdefault(day, {}).setdefault(
-            "heart_rate", {"sum": 0, "avg": None, "min": None, "max": None, "n": 0})
-        if mn is not None:
-            hr["min"] = mn if hr["min"] is None else min(hr["min"], mn)
-        if mx is not None:
-            hr["max"] = mx if mx is None else max(hr["max"], mx)
-
-    known = {"steps", "sleep", "heart_rate", "resting_hr"}
     out = []
     for i in range((end_d - start_d).days + 1):
-        d = (start_d + datetime.timedelta(days=i)).isoformat()
-        m = agg.get(d, {})
-        sleep, hr, rhr, steps_ = m.get("sleep"), m.get("heart_rate"), m.get("resting_hr"), m.get("steps")
-        extras = {}
-        for k, v in m.items():
-            if k in known:
-                continue
-            if v.get("sum") is not None:
-                extras[k] = round(v["sum"], 1)
-        out.append({
-            "day": d,
-            "has_data": bool(m),
-            "steps": int(steps_["sum"]) if steps_ else None,
-            "sleep_hours": round(sleep["sum"], 2) if sleep else None,
-            "sleep_stages": (sleep_extra.get(d) or {}).get("stages") or {},
-            "sleep_window": (sleep_extra.get(d) or {}).get("window"),
-            "hr_avg": round(hr["avg"]) if hr and hr["avg"] is not None else None,
-            "hr_min": round(hr["min"]) if hr and hr["min"] is not None else None,
-            "hr_max": round(hr["max"]) if hr and hr["max"] is not None else None,
-            "resting_hr": round(rhr["avg"]) if rhr and rhr["avg"] is not None else None,
-            "extras": extras,
-            "updated_at": (_fmt_ts(recv[d], "%Y-%m-%d %H:%M")
-                           if d in recv and recv[d] else None),
-        })
+        day = (start_d + datetime.timedelta(days=i)).isoformat()
+        item = _day_out(day, agg.get(day, {}), recv)
+        se = sleep_extra.get(day) or {}
+        item["sleep_stages"] = se.get("stages") or {}
+        item["sleep_window"] = se.get("window")
+        out.append(item)
     return {"ok": True, "start": start_d.isoformat(), "end": end_d.isoformat(),
             "today": out[-1] if out else None, "days": out}
 
@@ -452,13 +381,7 @@ def days_api(request: Request, start: str = "", end: str = ""):
 def raw(request: Request, limit: int = 30):
     if not _token_ok(request, VIEW_TOKEN):
         return JSONResponse({"ok": False, "error": "bad token"}, status_code=401)
-    conn = db()
-    rows = conn.execute(
-        "SELECT metric,day,ts,value,extra FROM samples ORDER BY id DESC LIMIT ?", (min(limit, 500),)
-    ).fetchall()
-    conn.close()
-    keys = ("metric", "day", "ts", "value", "extra")
-    return {"ok": True, "items": [dict(zip(keys, r)) for r in rows]}
+    return {"ok": True, "items": STORE.recent(min(max(limit, 1), 500))}
 
 
 @app.post("/api/demo")
@@ -467,28 +390,23 @@ def demo(request: Request):
     if not _token_ok(request, INGEST_TOKEN):
         return JSONResponse({"ok": False, "error": "bad token"}, status_code=401)
     import random
-    conn = db()
-    with conn:
-        for i in range(7):
-            day = (_now() - datetime.timedelta(days=i)).strftime("%Y-%m-%d")
-            total = round(random.uniform(6.2, 8.6), 2)
-            stages = {"deep": round(total * 0.22, 2), "core": round(total * 0.55, 2),
-                      "rem": round(total * 0.20, 2), "awake": round(total * 0.03, 2)}
-            window = [f"{day} 23:{random.randint(10, 55)}:00 +0800",
-                      f"{day} 07:{random.randint(0, 40):02d}:00 +0800"]
-            conn.execute("DELETE FROM samples WHERE day=?", (day,))
-            conn.executemany(
-                "INSERT OR REPLACE INTO samples(metric,day,ts,value,extra,recv) VALUES(?,?,?,?,?,?)",
-                [
-                    ("sleep", day, f"{day} 07:00:00 +0800", total,
-                     json.dumps({"stages": stages, "window": window}), time.time()),
-                    ("steps", day, f"{day} 22:00:00 +0800", random.randint(3200, 12000), None, time.time()),
-                    ("heart_rate", day, f"{day} 12:00:00 +0800", random.randint(64, 82),
-                     json.dumps({"min": random.randint(48, 56), "max": random.randint(110, 145)}), time.time()),
-                    ("resting_hr", day, f"{day} 07:00:00 +0800", random.randint(52, 61), None, time.time()),
-                ],
-            )
-    conn.close()
+    now = _now()
+    for i in range(7):
+        day = (now - datetime.timedelta(days=i)).strftime("%Y-%m-%d")
+        total = round(random.uniform(6.2, 8.6), 2)
+        stages = {"deep": round(total * 0.22, 2), "core": round(total * 0.55, 2),
+                  "rem": round(total * 0.20, 2), "awake": round(total * 0.03, 2)}
+        window = [f"{day} 23:{random.randint(10, 55):02d}:00 +0800",
+                  f"{day} 07:{random.randint(0, 40):02d}:00 +0800"]
+        STORE.delete_day(day)
+        STORE.upsert([
+            ("sleep", day, f"{day} 07:00:00 +0800", total,
+             json.dumps({"stages": stages, "window": window}), time.time()),
+            ("steps", day, f"{day} 22:00:00 +0800", random.randint(3200, 12000), None, time.time()),
+            ("heart_rate", day, f"{day} 12:00:00 +0800", random.randint(64, 82),
+             json.dumps({"min": random.randint(48, 56), "max": random.randint(110, 145)}), time.time()),
+            ("resting_hr", day, f"{day} 07:00:00 +0800", random.randint(52, 61), None, time.time()),
+        ])
     return {"ok": True, "seeded_days": 7}
 
 
@@ -562,6 +480,9 @@ def apple_icon():
 @app.get("/")
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
+
+
 
 
 
