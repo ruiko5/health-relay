@@ -24,6 +24,17 @@ INGEST_TOKEN = os.getenv("INGEST_TOKEN", "").strip()   # 上报口令，留空�
 VIEW_TOKEN = os.getenv("VIEW_TOKEN", "").strip()       # 查看口令，留空则公开
 
 BASE = Path(__file__).parent
+# Render 的服务器时区是 UTC，而数据（HealthKit 时间戳）和用户都在 +08:00。
+# 统一按 +08:00 算「今天」和展示时间，否则北京时间 0 点后页面会认为"今天还没数据"。
+TZ = datetime.timezone(datetime.timedelta(hours=8))
+
+
+def _now() -> datetime.datetime:
+    return datetime.datetime.now(TZ)
+
+
+def _fmt_ts(epoch, fmt: str = "%Y-%m-%d %H:%M:%S") -> str:
+    return datetime.datetime.fromtimestamp(epoch, TZ).strftime(fmt)
 DAY_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 ALIAS = {
     "step_count": "steps",
@@ -71,7 +82,7 @@ def db():
 
 # ---------------------------------------------------------------- parsing
 def today() -> str:
-    return time.strftime("%Y-%m-%d")
+    return _now().strftime("%Y-%m-%d")
 
 
 def _day_of(ts: str) -> str:
@@ -289,9 +300,9 @@ def summary(request: Request, days: int = 7):
             hr["max"] = mx if hr["max"] is None else max(hr["max"], mx)
 
     # 补齐空白日期，前端画图不用处理空洞
-    out, now = [], time.time()
+    out, now = [], _now()
     for i in range(days - 1, -1, -1):
-        day = time.strftime("%Y-%m-%d", time.localtime(now - i * 86400))
+        day = (now - datetime.timedelta(days=i)).strftime("%Y-%m-%d")
         m = agg.get(day, {})
         sleep = m.get("sleep")
         hr = m.get("heart_rate")
@@ -314,7 +325,7 @@ def summary(request: Request, days: int = 7):
         "ok": True,
         "today": out[-1],
         "days": out,
-        "updated_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(updated)) if updated else None,
+        "updated_at": _fmt_ts(updated) if updated else None,
     }
 
 
@@ -333,7 +344,7 @@ def days_api(request: Request, start: str = "", end: str = ""):
         except ValueError:
             return None
 
-    end_d = parse_day(end) or datetime.date.today()
+    end_d = parse_day(end) or _now().date()
     start_d = parse_day(start) or (end_d - datetime.timedelta(days=29))
     if start_d > end_d:
         start_d, end_d = end_d, start_d
@@ -417,7 +428,7 @@ def days_api(request: Request, start: str = "", end: str = ""):
             "hr_max": round(hr["max"]) if hr and hr["max"] is not None else None,
             "resting_hr": round(rhr["avg"]) if rhr and rhr["avg"] is not None else None,
             "extras": extras,
-            "updated_at": (time.strftime("%Y-%m-%d %H:%M", time.localtime(recv[d]))
+            "updated_at": (_fmt_ts(recv[d], "%Y-%m-%d %H:%M")
                            if d in recv and recv[d] else None),
         })
     return {"ok": True, "start": start_d.isoformat(), "end": end_d.isoformat(),
@@ -446,7 +457,7 @@ def demo(request: Request):
     conn = db()
     with conn:
         for i in range(7):
-            day = time.strftime("%Y-%m-%d", time.localtime(time.time() - i * 86400))
+            day = (_now() - datetime.timedelta(days=i)).strftime("%Y-%m-%d")
             total = round(random.uniform(6.2, 8.6), 2)
             stages = {"deep": round(total * 0.22, 2), "core": round(total * 0.55, 2),
                       "rem": round(total * 0.20, 2), "awake": round(total * 0.03, 2)}
@@ -471,7 +482,7 @@ def demo(request: Request):
 @app.get("/healthz")
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-22T0105"}
+    return {"ok": True, "rev": "2026-11-22T0125"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -538,6 +549,8 @@ def apple_icon():
 @app.get("/")
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
+
 
 
 
