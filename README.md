@@ -25,6 +25,7 @@ Apple Watch ──► iPhone（Health Auto Export 或 快捷指令）
 | `render.yaml` | Render 一键部署描述（自动生成两个口令） |
 | `sample_payload.json` | Health Auto Export 的真实报文样例，用来测试 |
 | `selftest.py` | 回归自测：重复推送不累加、旧库自动迁移、多段睡眠求和（`\.venv\Scripts\python.exe selftest.py`） |
+| `sw.js` + `icon-*.png` | PWA：离线缓存与桌面图标（装到桌面后全屏无地址栏） |
 
 ## 一、本地先跑通（3 分钟）
 
@@ -159,6 +160,17 @@ Vercel 的免费层是纯 Serverless、没有持久存储：每次请求可能�
 2. 小米浏览器打开 → 菜单 → **添加到桌面**，会生成一个图标，点开就是看板
 3. 页面每 5 分钟自动刷新，从后台切回来也会刷新
 4. 第一次打开如果卡 30 秒以上，是服务在冷启动，刷新一下就好
+
+### 装成 App（PWA）
+
+项目自带 PWA 支持，装到桌面后**全屏、无地址栏、有独立图标**，断网还能看上次的数据：
+
+- **安卓（小米/华为等）**：用 Chrome 或系统浏览器打开看板 → 右下角会弹出「装到桌面」→ 点**安装**（或菜单 → 安装应用/添加到主屏幕）。
+- **iPhone**：Safari 打开 → 底部**分享**按钮 → **添加到主屏幕**。
+- 图标是渐变底 + 心电图线；`manifest.webmanifest` 会自动把当前 `token` 写进 `start_url`，所以装好后点图标直接进看板，不用再输口令。
+- 离线：`sw.js` 会缓存页面外壳和最近一次接口数据，断网时打开显示上次的数据。
+
+> 想换图标：改 `tools/make_icons.py`（或直接替换 `icon-192.png` / `icon-512.png` / `apple-touch-icon.png`）后重新部署即可。
 
 ## 六、还能怎么长
 
