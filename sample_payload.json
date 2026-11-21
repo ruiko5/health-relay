@@ -1,0 +1,34 @@
+{
+  "data": {
+    "metrics": [
+      {
+        "name": "heart_rate",
+        "units": "count/min",
+        "data": [
+          { "date": "2026-11-21 08:00:00 +0800", "Min": 52, "Avg": 68, "Max": 121 }
+        ]
+      },
+      {
+        "name": "sleep_analysis",
+        "units": "hr",
+        "data": [
+          {
+            "date": "2026-11-21",
+            "totalSleep": 7.4,
+            "asleep": 7.1,
+            "deep": 1.2,
+            "core": 4.1,
+            "rem": 1.7,
+            "sleepStart": "2026-11-20 23:20:00 +0800",
+            "sleepEnd": "2026-11-21 06:50:00 +0800"
+          }
+        ]
+      },
+      {
+        "name": "step_count",
+        "units": "count",
+        "data": [{ "date": "2026-11-21 22:00:00 +0800", "qty": 8432 }]
+      }
+    ]
+  }
+}
