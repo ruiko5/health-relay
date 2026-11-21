@@ -166,13 +166,24 @@ def _hours(start, end):
 
 
 # ---------------------------------------------------------------- auth
+def _clean(token: str) -> str:
+    """容忍客户端常见的手误：前后空格、成对引号、误带 "Bearer " 前缀。"""
+    t = (token or "").strip()
+    for _ in range(2):
+        if len(t) >= 2 and t[0] == t[-1] and t[0] in "\"'":
+            t = t[1:-1].strip()
+    if t.lower().startswith("bearer "):
+        t = t[7:].strip()
+    return t
+
+
 def _got_token(request: Request) -> str:
-    return (
+    return _clean(
         request.query_params.get("token")
         or request.headers.get("x-auth-token")
         or request.headers.get("x-api-key")
-        or (request.headers.get("authorization", "").removeprefix("Bearer ").strip())
-    ) or ""
+        or request.headers.get("authorization", "")
+    )
 
 
 def _mask(token: str) -> str:
