@@ -166,22 +166,37 @@ def _hours(start, end):
 
 
 # ---------------------------------------------------------------- auth
-def _token_ok(request: Request, expect: str) -> bool:
-    if not expect:
-        return True
-    got = (
+def _got_token(request: Request) -> str:
+    return (
         request.query_params.get("token")
         or request.headers.get("x-auth-token")
         or request.headers.get("x-api-key")
         or (request.headers.get("authorization", "").removeprefix("Bearer ").strip())
-    )
-    return got == expect
+    ) or ""
+
+
+def _mask(token: str) -> str:
+    """只露前 4 位和后 2 位，用来排查空格/引号/长度不一致，不泄漏完整口令。"""
+    if len(token) <= 8:
+        return repr(token)
+    return repr(token[:4] + "*" * (len(token) - 6) + token[-2:])
+
+
+def _token_ok(request: Request, expect: str) -> bool:
+    if not expect:
+        return True
+    return _got_token(request) == expect
 
 
 # ---------------------------------------------------------------- routes
 @app.post("/ingest")
 async def ingest(request: Request):
-    if not _token_ok(request, INGEST_TOKEN):
+    got = _got_token(request)
+    if INGEST_TOKEN and got != INGEST_TOKEN:
+        # 排查用：能看出客户端到底发了什么（带空格 / 带引号 / 长度不对）
+        print(f"[auth] ingest 401 got={_mask(got)} len={len(got)} "
+              f"expect_len={len(INGEST_TOKEN)} headers={sorted(request.headers.keys())}",
+              flush=True)
         return JSONResponse({"ok": False, "error": "bad token"}, status_code=401)
     try:
         payload = await request.json()
