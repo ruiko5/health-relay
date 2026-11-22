@@ -462,16 +462,29 @@ function renderHR() {
     if (dayMap[k]?.hr_avg != null) trend.push({ x: (6 - i) / 6, y: dayMap[k].hr_avg, label: md(k) });
   }
 
+  // 优先画「一天内」的小时曲线；没有小时数据（老数据/未开小时分组）就退回 7 天趋势
+  const series = (t.hr_series || []).filter(p => p.avg != null);
+  const intraday = series.length >= 3;
+  let chartHtml, axisHtml;
+  if (intraday) {
+    const pts = series.map(p => ({ x: p.h / 23, y: p.avg }));
+    chartHtml = areaChart(pts, { color: '#FF3B30', h: 150 });
+    axisHtml = [0, 6, 12, 18, 23].map(h => `<span>${String(h).padStart(2, '0')}:00</span>`).join('');
+  } else {
+    chartHtml = areaChart(trend.map(p => ({ x: p.x, y: p.y })), { color: '#FF3B30' });
+    axisHtml = trend.map(p => `<span>${p.label.split('月')[1].replace('日', '')}</span>`).join('');
+  }
+
   $('#hr-body').innerHTML = `
     <div class="bigstat">
       <div class="r">${t.hr_min ?? '--'}–${t.hr_max ?? '--'}<small>bpm</small></div>
       <div class="a">平均<b>${t.hr_avg ?? '--'}</b></div>
     </div>
     <div class="card chartcard" style="margin-top:12px;cursor:default">
-      <div class="cap">最近 7 天平均心率</div>
-      ${areaChart(trend.map(p => ({ x: p.x, y: p.y })), { color: '#FF3B30' })}
+      <div class="cap">${intraday ? '当天心率波动（按小时）' : '最近 7 天平均心率'}</div>
+      ${chartHtml}
       <div style="display:flex;justify-content:space-between;font-size:11px;color:#C7C7CC;padding:2px 10px 6px">
-        ${trend.map(p => `<span>${p.label.slice(0, p.label.indexOf('月') + 1)}${p.label.split('月')[1].replace('日','')}</span>`).join('')}
+        ${axisHtml}
       </div>
     </div>
     <div class="group-title">明细</div>
