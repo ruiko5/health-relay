@@ -156,8 +156,21 @@ def _aggregate(rows):
     all_sum, all_n = {}, {}
     vmin, vmax = {}, {}
 
+    # 心率：这一天如果已经有「按小时」的数据，就忽略 00:00 那条按天汇总，避免平均被拉偏
+    hr_hours = {}
+    for r in rows:
+        if r["metric"] != "heart_rate" or not r.get("ts"):
+            continue
+        hh = str(r["ts"])[11:13]
+        if hh.isdigit() and hh != "00":
+            hr_hours.setdefault(r["day"], set()).add(hh)
+
     for r in rows:
         day, metric, v = r["day"], r["metric"], r["value"]
+        if metric == "heart_rate" and r.get("ts"):
+            hh = str(r["ts"])[11:13]
+            if hh == "00" and hr_hours.get(day):
+                continue
         key = (day, metric)
         if v is not None:
             all_sum[key] = all_sum.get(key, 0.0) + v
@@ -788,7 +801,7 @@ def demo(request: Request):
 @app.api_route("/healthz", methods=["GET", "HEAD"])
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-23T0400"}
+    return {"ok": True, "rev": "2026-11-23T0430"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -855,6 +868,7 @@ def apple_icon():
 @app.api_route("/", methods=["GET", "HEAD"])
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
 
 
 
