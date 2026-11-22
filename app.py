@@ -477,7 +477,18 @@ def _fold_daily(samples):
             if not vals:
                 continue
             value = sum(vals) / len(vals)
-            extra = {"min": min(vals), "max": max(vals)}
+            lo, hi = min(vals), max(vals)
+            # 汇总报文自带 Min/Max（一条代表一整天），不能只按 value 算，否则区间会塌成一个点
+            for i in items:
+                try:
+                    ex = json.loads(i.get("extra") or "{}")
+                except (TypeError, ValueError):
+                    ex = {}
+                for k in ("min", "max"):
+                    v2 = ex.get(k)
+                    if isinstance(v2, (int, float)):
+                        lo, hi = min(lo, v2), max(hi, v2)
+            extra = {"min": lo, "max": hi}
         elif metric == "sleep":
             unseen, seen = [], set()
             for i in items:
@@ -661,7 +672,7 @@ def demo(request: Request):
 @app.api_route("/healthz", methods=["GET", "HEAD"])
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-22T1855"}
+    return {"ok": True, "rev": "2026-11-22T1900"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -728,6 +739,8 @@ def apple_icon():
 @app.api_route("/", methods=["GET", "HEAD"])
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
+
 
 
 
