@@ -581,7 +581,7 @@ function renderHR() {
 
   // 优先画「一天内」的小时曲线；没有小时数据（老数据/未开小时分组）就退回 7 天趋势
   const series = (t.hr_series || []).filter(p => p.avg != null);
-  const intraday = series.length >= 3;
+  const intraday = series.length >= 2;   // 今天刚起床也可能只有 2 个点，仍然按小时画
   let chartHtml, axisHtml;
   if (intraday) {
     const pts = series.map(p => ({
@@ -607,7 +607,9 @@ function renderHR() {
       <div class="a">平均<b>${t.hr_avg ?? '--'}</b></div>
     </div>
     <div class="card chartcard" style="margin-top:12px;cursor:default">
-      <div class="cap">${intraday ? '当天心率波动（按小时）' : '最近 7 天平均心率'}</div>
+      <div class="cap">${intraday
+        ? (series.length < 8 ? `当天心率波动（按小时，已记录 ${series.length} 个小时）` : '当天心率波动（按小时）')
+        : '最近 7 天平均心率（当天还没有小时数据）'}</div>
       ${chartHtml}
       <div style="display:flex;justify-content:space-between;font-size:11px;color:#C7C7CC;padding:2px 10px 6px">
         ${axisHtml}
