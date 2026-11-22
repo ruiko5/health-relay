@@ -37,6 +37,28 @@ def _now() -> datetime.datetime:
 def _fmt_ts(epoch, fmt: str = "%Y-%m-%d %H:%M:%S") -> str:
     return datetime.datetime.fromtimestamp(epoch, TZ).strftime(fmt)
 DAY_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
+SLEEP_STAGE_RE = re.compile(r"(deep|core|rem|awake|inbed|in_bed|asleep)", re.I)
+
+
+def _sleep_stage(raw):
+    """把 HAE 原始样本里的 HKCategoryValueSleepAnalysis* 映射成阶段名。"""
+    s = str(raw or "")
+    if "SleepAnalysis" not in s and not SLEEP_STAGE_RE.search(s):
+        return None
+    low = s.lower()
+    if "deep" in low:
+        return "deep"
+    if "core" in low:
+        return "core"
+    if "rem" in low:
+        return "rem"
+    if "awake" in low:
+        return "awake"
+    if "inbed" in low or "in_bed" in low:
+        return "inbed"
+    if "asleep" in low:
+        return None  # 未细分，只算总时长
+    return None
 ALIAS = {
     "step_count": "steps",
     "steps": "steps",
@@ -172,24 +194,43 @@ def parse(payload):
         for row in rows:
             if not isinstance(row, dict):
                 continue
-            ts = row.get("date") or row.get("start") or row.get("end")
+            ts = (row.get("date") or row.get("start") or row.get("end")
+                  or row.get("startDate") or row.get("endDate"))
             if name == "sleep_analysis":
-                # totalSleep 单位为小时（聚合导出）；否则用 end-start
-                v = row.get("totalSleep")
-                if v is None:
-                    v = row.get("asleep")
-                start, end = row.get("sleepStart") or row.get("start"), row.get("sleepEnd") or row.get("end")
+                # 支持三种形态：
+                #  A. 聚合导出 {"totalSleep":7.6,"deep":..,"core":..}
+                #  B. 原始样本 v2 {"startDate":..,"endDate":..,"value":"HKCategoryValueSleepAnalysisAsleepCore"}
+                #  C. 原始样本 v1 {"sleepStart":..,"sleepEnd":..}
+                start = (row.get("sleepStart") or row.get("start")
+                         or row.get("startDate") or row.get("start_time"))
+                end = (row.get("sleepEnd") or row.get("end") or row.get("endDate")
+                       or row.get("end_time"))
+                raw_v = row.get("totalSleep")
+                if raw_v is None:
+                    raw_v = row.get("asleep")
+                if raw_v is None:
+                    raw_v = row.get("value")
+                if raw_v is None:
+                    raw_v = row.get("qty")
+                stage = _sleep_stage(raw_v)
+                v = _num(raw_v)
                 if v is None and start and end:
                     v = _hours(start, end)
                 # 阶段时长（深睡/核心/REM/清醒）留着给前端画睡眠结构
                 stages = {k: row.get(k) for k in ("deep", "core", "rem", "awake", "inBed")}
                 stages = {k: val for k, val in stages.items() if val is not None}
                 extra = {}
+                if stage:
+                    extra["stage"] = stage
                 if stages:
                     extra["stages"] = stages
                 if start and end:
                     extra["window"] = [str(start), str(end)]
-                add("sleep", ts, v, extra or None)
+                # 清醒/卧床单独记，不混进「睡眠时长」
+                # 归属按「起床时间」算：否则跨午夜的那段会被记到前一天
+                sleep_ts = end or ts
+                add("sleep_" + stage if stage in ("awake", "inbed") else "sleep",
+                    sleep_ts, v, extra or None)
             elif "Avg" in row or "Min" in row or "Max" in row:
                 add(name, ts, _scaled(row.get("Avg", row.get("qty")), scale),
                     {"min": _scaled(row.get("Min"), scale), "max": _scaled(row.get("Max"), scale)})
@@ -361,9 +402,14 @@ def days_api(request: Request, start: str = "", end: str = ""):
         for k, v in (ex.get("stages") or {}).items():
             if isinstance(v, (int, float)):
                 cur["stages"][k] = round(cur["stages"].get(k, 0) + v, 2)
+        # 原始样本：每条只带一个阶段，按阶段累加
+        st = ex.get("stage")
+        if st and isinstance(r.get("value"), (int, float)):
+            cur["stages"][st] = round(cur["stages"].get(st, 0) + r["value"], 2)
         w = ex.get("window")
         if isinstance(w, list) and len(w) == 2:
-            cur["window"] = w
+            cur["window"] = ([min(cur["window"][0], w[0]), max(cur["window"][1], w[1])]
+                             if cur["window"] else w)
 
     out = []
     for i in range((end_d - start_d).days + 1):
@@ -440,7 +486,7 @@ def demo(request: Request):
 @app.get("/healthz")
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-22T0248"}
+    return {"ok": True, "rev": "2026-11-22T1445"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -507,6 +553,9 @@ def apple_icon():
 @app.get("/")
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
+
+
 
 
 
