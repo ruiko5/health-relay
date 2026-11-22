@@ -79,32 +79,45 @@ def _init_store():
     STORE.init()
 
 
+def _is_raw(metric: str, row: dict) -> bool:
+    """判断这一行是「原始样本」还是「按天汇总行」。
+
+    不能只看时间戳（睡眠段可能正好从 00:00 开始），要按各指标的数据特征：
+      - 睡眠：原始样本带 stage（core/deep/rem），汇总行只有 stages 字典
+      - 心率：原始样本只有单值，汇总行带 min/max
+      - 其它（步数/能量/距离）：汇总行的时间戳是当天 00:00，原始样本是具体时刻
+    """
+    extra = str(row.get("extra") or "")
+    if metric == "sleep":
+        return '"stage"' in extra
+    if metric == "heart_rate":
+        return "min" not in extra and "max" not in extra
+    return " 00:00:00" not in str(row.get("ts") or "")
+
+
 def _aggregate(rows):
     """按 (day, metric) 聚合。
 
-    同一天同一指标可能同时存在两种数据：
-      - 汇总行（ts 是当天 00:00:00）：HAE「默认/过去 7 天 + 汇总数据开」推的当天总值
-      - 原始样本（ts 是具体时刻）：关掉「汇总数据」后推的逐条读数
-    两者混在一起直接 SUM 会翻倍，所以这里**优先用原始样本**：
-    当天有原始样本就只用原始样本求和，否则才用汇总行。
+    同一天同一指标可能同时有「汇总行」和「原始样本」：
+    直接 SUM 会翻倍，所以**当天只要有原始样本就只用原始样本**，
+    没有原始样本（老数据 / 只跑「过去 7 天」那个自动化）才用汇总行。
     """
     days, hr_range, recv = {}, {}, {}
-
-    def bucket(r):
-        # ts 形如 "2026-11-22 00:00:00 +0800" 视为「汇总行」
-        return "agg" if " 00:00:00" in str(r.get("ts") or "") else "raw"
+    raw_sum, raw_n = {}, {}
+    all_sum, all_n = {}, {}
+    vmin, vmax = {}, {}
 
     for r in rows:
         day, metric, v = r["day"], r["metric"], r["value"]
+        key = (day, metric)
         if v is not None:
-            a = days.setdefault(day, {}).setdefault(
-                metric, {"raw": 0.0, "raw_n": 0, "agg": 0.0, "agg_n": 0,
-                         "min": None, "max": None})
-            k = bucket(r)
-            a[k] += v
-            a[k + "_n"] += 1
-            a["min"] = v if a["min"] is None else min(a["min"], v)
-            a["max"] = v if a["max"] is None else max(a["max"], v)
+            all_sum[key] = all_sum.get(key, 0.0) + v
+            all_n[key] = all_n.get(key, 0) + 1
+            vmin[key] = v if key not in vmin else min(vmin[key], v)
+            vmax[key] = v if key not in vmax else max(vmax[key], v)
+            if _is_raw(metric, r):
+                raw_sum[key] = raw_sum.get(key, 0.0) + v
+                raw_n[key] = raw_n.get(key, 0) + 1
         if r.get("recv"):
             recv[day] = max(recv.get(day, 0), r["recv"])
         if metric == "heart_rate" and r.get("extra"):
@@ -119,13 +132,16 @@ def _aggregate(rows):
             if isinstance(mx, (int, float)):
                 cur[1] = mx if cur[1] is None else max(cur[1], mx)
 
-    for day, metrics in days.items():
-        for metric, a in metrics.items():
-            use_raw = a["raw_n"] > 0
-            a["sum"] = a["raw"] if use_raw else a["agg"]
-            a["n"] = a["raw_n"] if use_raw else a["agg_n"]
-            a.pop("raw", None); a.pop("raw_n", None)
-            a.pop("agg", None); a.pop("agg_n", None)
+    for key, total in all_sum.items():
+        day, metric = key
+        has_raw = raw_n.get(key, 0) > 0
+        bucket = days.setdefault(day, {})
+        bucket[metric] = {
+            "sum": raw_sum[key] if has_raw else total,
+            "n": raw_n.get(key, 0) if has_raw else all_n[key],
+            "min": vmin.get(key),
+            "max": vmax.get(key),
+        }
 
     for day, (mn, mx) in hr_range.items():
         hr = days.setdefault(day, {}).setdefault(
@@ -516,7 +532,7 @@ def demo(request: Request):
 @app.get("/healthz")
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-22T1455"}
+    return {"ok": True, "rev": "2026-11-22T1505"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -583,6 +599,7 @@ def apple_icon():
 @app.get("/")
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
 
 
 
