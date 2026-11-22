@@ -21,7 +21,12 @@ class Store:
     def connect(self):
         if self.kind == "postgres":
             import psycopg
-            return psycopg.connect(DATABASE_URL)
+            url = DATABASE_URL
+            # Supabase 给的是 postgres://，psycopg 只认 postgresql://
+            if url.startswith("postgres://"):
+                url = "postgresql://" + url[len("postgres://"):]
+            # prepare_threshold=None：兼容 PgBouncer（Supabase 的 6543 连接池）
+            return psycopg.connect(url, prepare_threshold=None)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(self.path, timeout=10)
         conn.row_factory = sqlite3.Row
@@ -131,4 +136,5 @@ class Store:
         n = cur.execute("SELECT COUNT(*) FROM samples").fetchone()[0]
         conn.close()
         return n
+
 
