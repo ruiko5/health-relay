@@ -28,6 +28,22 @@ BASE = Path(__file__).parent
 # Render 的服务器时区是 UTC，而数据（HealthKit 时间戳）和用户都在 +08:00。
 # 统一按 +08:00 算「今天」和展示时间，否则北京时间 0 点后页面会认为"今天还没数据"。
 TZ = datetime.timezone(datetime.timedelta(hours=8))
+# vivo 健康写进 Apple Health 的睡眠时间比实际早 8 小时（实测 20:35-03:39 被写成 04:35-11:39），
+# 这里统一往回挪，可用环境变量 SLEEP_SHIFT_HOURS 覆盖（设为 0 即不纠正）。
+SLEEP_SHIFT_HOURS = float(os.getenv("SLEEP_SHIFT_HOURS", "0"))   # 你的睡眠时间是对的，默认不偏移
+
+
+def _shift_time(ts, hours: float):
+    """把 "2026-11-22 04:35:00 +0800" 这种时间串平移若干小时。"""
+    if not hours:
+        return ts
+    for fmt in ("%Y-%m-%d %H:%M:%S %z", "%Y-%m-%dT%H:%M:%S%z"):
+        try:
+            dt = datetime.datetime.strptime(str(ts).strip(), fmt)
+            return (dt + datetime.timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S %z")
+        except ValueError:
+            continue
+    return ts
 
 
 def _now() -> datetime.datetime:
@@ -291,6 +307,11 @@ def parse(payload):
                     raw_v = row.get("value")
                 if raw_v is None:
                     raw_v = row.get("qty")
+                # vivo 写进来的睡眠时间整体偏 +8 小时，这里统一挪回来
+                if start:
+                    start = _shift_time(start, SLEEP_SHIFT_HOURS)
+                if end:
+                    end = _shift_time(end, SLEEP_SHIFT_HOURS)
                 stage = _sleep_stage(raw_v)
                 v = _num(raw_v)
                 if v is None and start and end:
@@ -640,7 +661,7 @@ def demo(request: Request):
 @app.api_route("/healthz", methods=["GET", "HEAD"])
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-22T1830"}
+    return {"ok": True, "rev": "2026-11-22T1855"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -707,6 +728,9 @@ def apple_icon():
 @app.api_route("/", methods=["GET", "HEAD"])
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
+
+
 
 
 
