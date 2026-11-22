@@ -224,9 +224,14 @@ function dateStrip(el, onPick, days = 14) {
   requestAnimationFrame(() => { el.scrollLeft = el.scrollWidth; });
 }
 
+/** 统一的「卡路里」口径：健康 App 的活动能量 + 当天运动消耗 */
+function totalEnergy(t) {
+  return Math.round((t?.extras?.active_energy || 0) + (t?.workout_energy || 0));
+}
+
 function ringSVG(t, size = 130) {
   const clamp = v => Math.max(0, Math.min(1, v));
-  const e = clamp((t.extras?.active_energy || 0) / GOALS.energy);
+  const e = clamp(totalEnergy(t) / GOALS.energy);
   const s = clamp((t.steps || 0) / GOALS.steps);
   const m = clamp((t.workout_minutes || 0) / GOALS.move);
   const c = size / 2;
@@ -296,7 +301,7 @@ function renderHome() {
     return;
   }
   const ex = t.extras || {};
-  const energy = Math.round(ex.active_energy || 0);
+  const energy = totalEnergy(t);
   const minutes = Math.round(t.workout_minutes || 0);
   const spo2 = ex.oxygen_saturation != null ? (ex.oxygen_saturation <= 1.5 ? Math.round(ex.oxygen_saturation * 100) : Math.round(ex.oxygen_saturation)) : null;
   const weight = ex.weight ?? ex.body_mass ?? null;
@@ -326,7 +331,7 @@ function renderHome() {
     tile('bed', '#AF52DE', '睡眠', t.sleep_hours != null ? (t.sleep_hours).toFixed(1) : '--', '小时', t.sleep_window ? `${clock(t.sleep_window[0])}–${clock(t.sleep_window[1])}` : '暂无数据', ''),
     tile('bp', '#FF2D55', '血压', bp ?? '--', bp ? 'mmHg' : '', bp ? '最近一次' : '暂无数据', ''),
     tile('shoe', '#34C759', '步数', t.steps ?? '--', '步', t.steps != null ? md(t.day) : '暂无数据', 'act'),
-    tile('flame', '#FF9500', '卡路里', energy != null ? energy : '--', '千卡', energy != null ? md(t.day) : '暂无数据', 'act'),
+    tile('flame', '#FF9500', '卡路里', energy, '千卡', (t.workout_energy ? ('含运动 ' + Math.round(t.workout_energy) + ' · ') : '') + md(t.day), 'act'),
     tile('stand', '#30B0C7', '站立', stand != null ? Math.round(stand) : '--', stand != null ? '小时' : '', stand != null ? md(t.day) : '暂无数据', ''),
     tile('timer', '#007AFF', '活动时长', actMin != null ? Math.round(actMin) : '--', actMin != null ? '分钟' : '', actMin != null ? md(t.day) : '暂无数据', 'act'),
     tile('scale', '#34C759', '体重', weight ?? '--', weight != null ? 'kg' : '', weight != null ? md(t.day) : '暂无数据', ''),
@@ -402,7 +407,7 @@ function renderAct() {
   $('#act-body').innerHTML = `
     <div class="card" style="margin-top:12px;cursor:default">
       <div style="display:flex;align-items:center;gap:14px">
-        ${ringSVG({ steps: t.steps, workout_minutes: t.workout_minutes, extras: ex }, 112)}
+        ${ringSVG(t, 112)}
         <div style="flex:1">
           <div style="font-size:13px;color:var(--sub)">今日步数</div>
           <div style="font-size:30px;font-weight:700;letter-spacing:-.8px">${(t.steps ?? 0).toLocaleString('zh-CN')}<small style="font-size:13px;color:var(--sub);font-weight:500"> 步</small></div>
@@ -479,6 +484,7 @@ $$('[data-back]').forEach(b => b.addEventListener('click', () => nav('home')));
 </script>
 </body>
 </html>
+
 
 
 
