@@ -419,9 +419,84 @@ async def ingest(request: Request):
             raw = str(payload)
         print(f"[ingest] unparsed payload ({len(raw)}B): {raw[:1200]}", flush=True)
     if samples:
-        STORE.upsert([(s["metric"], s["day"], s["ts"], s["value"], s["extra"], time.time())
-                      for s in samples])
-    return {"ok": True, "stored": len(samples), "metrics": sorted({s["metric"] for s in samples})}
+        folded = _fold_daily(samples)
+        STORE.upsert(folded)
+        print(f"[ingest] {len(samples)} samples -> {len(folded)} daily rows", flush=True)
+    return {"ok": True, "stored": len(samples),
+            "folded": len(_fold_daily(samples)) if samples else 0,
+            "metrics": sorted({s["metric"] for s in samples})}
+
+
+def _fold_daily(samples):
+    """入库前按 (指标, 天) 折叠成一行。
+
+    关掉「汇总数据」后 App 每分钟会推成百上千条原始样本，全存下来几天就能把
+    免费数据库撑爆（实测一天就 150 万行 / 490MB）。看板只需要按天的数，
+    所以这里直接折成「一天一条」：
+
+      - 心率：取平均，min/max 放进 extra
+      - 睡眠：先按入睡-起床窗口去重（两个自动化会推同一晚），再求和，阶段累加
+      - 其它：求和
+
+    前提是每次推送都覆盖完整的一天（「默认」= 前一天 + 今天、「过去 7 天」= 完整 7 天）。
+    同一天后一次推送会覆盖前一次，不会累加。
+    """
+    from collections import defaultdict
+
+    buckets = defaultdict(list)
+    for s in samples:
+        buckets[(s["metric"], s["day"])].append(s)
+
+    out = []
+    for (metric, day), items in buckets.items():
+        ts = f"{day} 00:00:00 +0800"
+        extra = {}
+        if metric == "heart_rate":
+            vals = [i["value"] for i in items if i["value"] is not None]
+            if not vals:
+                continue
+            value = sum(vals) / len(vals)
+            extra = {"min": min(vals), "max": max(vals)}
+        elif metric == "sleep":
+            unseen, seen = [], set()
+            for i in items:
+                try:
+                    ex = json.loads(i.get("extra") or "{}")
+                except (TypeError, ValueError):
+                    ex = {}
+                w = ex.get("window")
+                key = (str(w[0]), str(w[1])) if isinstance(w, list) and len(w) == 2 else None
+                if key and key in seen:
+                    continue
+                if key:
+                    seen.add(key)
+                unseen.append((i, ex))
+            vals = [i["value"] for i, _ in unseen if i["value"] is not None]
+            if not vals:
+                continue
+            value = sum(vals)
+            stages = {}
+            window = None
+            for _, ex in unseen:
+                for k, v in (ex.get("stages") or {}).items():
+                    if isinstance(v, (int, float)):
+                        stages[k] = round(stages.get(k, 0) + v, 2)
+                w = ex.get("window")
+                if isinstance(w, list) and len(w) == 2:
+                    window = ([min(window[0], w[0]), max(window[1], w[1])] if window else w)
+            if stages:
+                extra["stages"] = stages
+            if window:
+                extra["window"] = window
+        else:
+            vals = [i["value"] for i in items if i["value"] is not None]
+            if not vals:
+                continue
+            value = sum(vals)
+
+        out.append((metric, day, ts, round(float(value), 4),
+                    json.dumps(extra, ensure_ascii=False) if extra else None, time.time()))
+    return out
 
 
 @app.get("/api/summary")
@@ -565,7 +640,7 @@ def demo(request: Request):
 @app.api_route("/healthz", methods=["GET", "HEAD"])
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-22T1815"}
+    return {"ok": True, "rev": "2026-11-22T1830"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -632,6 +707,8 @@ def apple_icon():
 @app.api_route("/", methods=["GET", "HEAD"])
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
+
 
 
 
