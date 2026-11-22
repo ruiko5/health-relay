@@ -500,30 +500,22 @@ function renderHome() {
   dateStrip($('#strip-home'), k => { selected = k; renderHome(); });
 
   if (!t) {
-    const hint = t.has_data ? '' :
-    `<div class="card" style="margin-bottom:12px;cursor:default;padding:12px 14px">
-       <div style="font-size:13.5px;color:#8E8E93">${md(t.day)} 这天还没有同步到数据</div>
-     </div>`;
-
-  $('#hero-home').innerHTML = hint + `<div class="card hero" data-day="${t.day}" data-day="${t.day}"><div class="empty">还没有数据，等手机同步一次</div></div>`;
+    $('#hero-home').innerHTML = `<div class="card hero"><div class="empty">还没有数据，等手机同步一次</div></div>`;
     $('#grid-home').innerHTML = '';
     return;
   }
   const ex = t.extras || {};
   const energy = totalEnergy(t);
   const minutes = Math.round(t.workout_minutes || 0);
-  const spo2 = ex.oxygen_saturation != null ? (ex.oxygen_saturation <= 1.5 ? Math.round(ex.oxygen_saturation * 100) : Math.round(ex.oxygen_saturation)) : null;
-  const weight = ex.weight ?? ex.body_mass ?? null;
-  const stand = ex.apple_stand_time ?? ex.stand_hours ?? null;
-  const bp = ex.blood_pressure_systolic != null ? `${Math.round(ex.blood_pressure_systolic)}/${Math.round(ex.blood_pressure_diastolic || 0)}` : null;
-  const actMin = ex.apple_exercise_time ?? ex.exercise_minutes ?? t.workout_minutes ?? null;
+  const stepPct = GOALS.steps ? Math.round(Math.min(999, (t.steps || 0) / GOALS.steps * 100)) : null;
+  const woCount = (t.workouts || []).length;
 
   const hint = t.has_data ? '' :
     `<div class="card" style="margin-bottom:12px;cursor:default;padding:12px 14px">
        <div style="font-size:13.5px;color:#8E8E93">${md(t.day)} 这天还没有同步到数据</div>
      </div>`;
 
-  $('#hero-home').innerHTML = hint + `<div class="card hero" data-day="${t.day}" data-day="${t.day}">
+  $('#hero-home').innerHTML = hint + `<div class="card hero" data-day="${t.day}">
     ${ringSVG(t)}
     <div class="legend">
       <div class="leg"><span class="dot" style="background:#FF3B30"></span><span class="k">卡路里</span><b>${energy}</b><span>/ ${GOALS.energy}</span></div>
@@ -541,14 +533,21 @@ function renderHome() {
     </div>`;
 
   $('#grid-home').innerHTML = [
-    tile('heart', '#FF3B30', '心率', t.hr_avg ?? '--', '次/分', t.hr_avg != null ? `${t.hr_min}–${t.hr_max} bpm` : '暂无数据', 'hr'),
-    tile('bed', '#AF52DE', '睡眠', t.sleep_hours != null ? (t.sleep_hours).toFixed(1) : '--', '小时', t.sleep_window ? `${clock(t.sleep_window[0])}–${clock(t.sleep_window[1])}` : '暂无数据', ''),
-    tile('bp', '#FF2D55', '血压', bp ?? '--', bp ? 'mmHg' : '', bp ? '最近一次' : '暂无数据', ''),
-    tile('shoe', '#34C759', '步数', t.steps ?? '--', '步', t.steps != null ? md(t.day) : '暂无数据', 'act'),
-    tile('flame', '#FF9500', '卡路里', (ex.active_energy != null || (t.workout_energy || 0) > 0) ? energy : '--', '千卡', (t.workout_energy ? ('含运动 ' + Math.round(t.workout_energy) + ' · ') : '') + md(t.day), 'act'),
-    tile('stand', '#30B0C7', '站立', stand != null ? Math.round(stand) : '--', stand != null ? '小时' : '', stand != null ? md(t.day) : '暂无数据', ''),
-    tile('timer', '#007AFF', '活动时长', actMin != null ? Math.round(actMin) : '--', actMin != null ? '分钟' : '', actMin != null ? md(t.day) : '暂无数据', 'act'),
-    tile('scale', '#34C759', '体重', weight ?? '--', weight != null ? 'kg' : '', weight != null ? md(t.day) : '暂无数据', ''),
+    tile('heart', '#FF3B30', '心率',
+      t.hr_avg ?? '--', '次/分',
+      t.hr_avg != null ? `${t.hr_min}–${t.hr_max} bpm` : '暂无数据', 'hr'),
+
+    tile('bed', '#AF52DE', '睡眠',
+      t.sleep_hours != null ? t.sleep_hours.toFixed(1) : '--', '小时',
+      t.sleep_window ? `${clock(t.sleep_window[0])}–${clock(t.sleep_window[1])}` : '暂无数据', ''),
+
+    tile('shoe', '#34C759', '步数',
+      t.steps != null ? t.steps.toLocaleString('zh-CN') : '--', '步',
+      t.steps != null ? `目标 ${GOALS.steps.toLocaleString('zh-CN')} · ${stepPct}%` : '暂无数据', 'act'),
+
+    tile('flame', '#FF9500', '卡路里',
+      (ex.active_energy != null || (t.workout_energy || 0) > 0) ? energy : '--', '千卡',
+      minutes ? `运动 ${minutes} 分钟${woCount ? ` · ${woCount} 次` : ''}` : '暂无运动', 'act'),
   ].join('');
 
   const heroCard = document.querySelector('#hero-home .hero');
@@ -836,7 +835,7 @@ $('#mask').addEventListener('click', () => {
        <div style="font-size:13.5px;color:#8E8E93">${md(t.day)} 这天还没有同步到数据</div>
      </div>`;
 
-  $('#hero-home').innerHTML = hint + `<div class="card hero" data-day="${t.day}" data-day="${t.day}"><div class="empty">链接缺少口令，请用带 ?token= 的完整链接打开</div></div>`;
+  $('#hero-home').innerHTML = hint + `<div class="card hero" data-day="${t.day}"><div class="empty">链接缺少口令，请用带 ?token= 的完整链接打开</div></div>`;
     return;
   }
   try {
@@ -890,7 +889,7 @@ $('#mask').addEventListener('click', () => {
      </div>`;
 
     const auth = e.message === 'AUTH';
-    $('#hero-home').innerHTML = hint + `<div class="card hero" data-day="${t.day}" data-day="${t.day}"><div class="empty">${
+    $('#hero-home').innerHTML = hint + `<div class="card hero" data-day="${t.day}"><div class="empty">${
       auth ? '口令不对，请用带 ?token= 的完整链接打开' : '正在唤醒服务，稍后自动重试…'}</div></div>`;
     if (auth) return;                    // 口令错了刷新多少次都没用
     const n = Number(sessionStorage.getItem('wakeN') || 0);
