@@ -234,12 +234,30 @@ const tone = v => v >= 80 ? '偏低' : v <= 75 ? '正常' : '偏高';
 const hrTone = v => v == null ? '--' : (v < 60 ? '偏低' : v <= 75 ? '正常范围' : '偏高，留意休息');
 
 /* ---------------- 数据 ---------------- */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/** 带「叫醒」重试的请求：免费实例休眠时前几次会 502，这里自动等它起来。 */
+async function fetchWarm(url, tries = 10){
+  for (let i = 0; i < tries; i++){
+    try{
+      const r = await fetch(url, { cache: 'no-store' });
+      if (r.status === 502 || r.status === 503 || r.status === 504) throw new Error('WAKE');
+      if (r.status === 401) throw new Error('AUTH');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return await r.json();
+    }catch(e){
+      if (e.message === 'AUTH') throw e;
+      if (i === tries - 1) throw e;
+      $('#updated').textContent = `正在唤醒服务… ${i + 1}/${tries}`;
+      $('#dot').className = 'dot stale';
+      await sleep(5000);
+    }
+  }
+}
+
 async function fetchRange(start, end){
   if (covered(start, end)) return null;
-  const r = await fetch(`/api/days?start=${start}&end=${end}&token=${encodeURIComponent(TOKEN)}`);
-  if (r.status === 401) throw new Error('AUTH');
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  const data = await r.json();
+  const data = await fetchWarm(`/api/days?start=${start}&end=${end}&token=${encodeURIComponent(TOKEN)}`);
   (data.days || []).forEach(d => { dayMap[d.day] = d; });
   loadedRanges.push({start, end});
   return data;
