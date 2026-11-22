@@ -505,18 +505,16 @@ async def ingest(request: Request):
 
 
 def _fold_daily(samples):
-    """入库前按 (指标, 天) 折叠成一行。
+    """入库前把原始样本折叠，避免把免费数据库撑爆。
 
-    关掉「汇总数据」后 App 每分钟会推成百上千条原始样本，全存下来几天就能把
-    免费数据库撑爆（实测一天就 150 万行 / 490MB）。看板只需要按天的数，
-    所以这里直接折成「一天一条」：
+    规则：
+      - 心率：**按小时**折叠（一天最多 24 行），这样前端能画出一天内的波动曲线；
+              报文里如果只有「一天一个平均值」，就退化成 1 行，前端会自动改用 7 天趋势图
+      - 运动：保留每次训练的明细
+      - 睡眠：按入睡-起床窗口去重后求和
+      - 其它：按天求和
 
-      - 心率：取平均，min/max 放进 extra
-      - 睡眠：先按入睡-起床窗口去重（两个自动化会推同一晚），再求和，阶段累加
-      - 其它：求和
-
-    前提是每次推送都覆盖完整的一天（「默认」= 前一天 + 今天、「过去 7 天」= 完整 7 天）。
-    同一天后一次推送会覆盖前一次，不会累加。
+    前提是推送覆盖完整的一天（「默认」= 前一天 + 今天、「过去 7 天」= 完整 7 天）。
     """
     from collections import defaultdict
 
@@ -524,35 +522,48 @@ def _fold_daily(samples):
     for s in samples:
         buckets[(s["metric"], s["day"])].append(s)
 
+    hr_extra = {}
+
+    def parse_extra(i):
+        try:
+            return json.loads(i.get("extra") or "{}")
+        except (TypeError, ValueError):
+            return {}
+
     out = []
     for (metric, day), items in buckets.items():
         ts = f"{day} 00:00:00 +0800"
         extra = {}
+
         if metric == "heart_rate":
-            vals = [i["value"] for i in items if i["value"] is not None]
-            if not vals:
-                continue
-            value = sum(vals) / len(vals)
-            lo, hi = min(vals), max(vals)
-            # 汇总报文自带 Min/Max（一条代表一整天），不能只按 value 算，否则区间会塌成一个点
+            # 按小时分桶（ts 形如 "2026-11-22 19:00:00 +0800" → 取到小时）
+            hourly = defaultdict(list)
             for i in items:
-                try:
-                    ex = json.loads(i.get("extra") or "{}")
-                except (TypeError, ValueError):
-                    ex = {}
-                for k in ("min", "max"):
-                    v2 = ex.get(k)
-                    if isinstance(v2, (int, float)):
-                        lo, hi = min(lo, v2), max(hi, v2)
-            extra = {"min": lo, "max": hi}
-        elif metric == "workout":
-            # 运动不求和成一条，保留每次训练的名字/时长/时间
+                if i["value"] is None:
+                    continue
+                hh = str(i.get("ts") or "")[11:13]
+                key = hh if hh.isdigit() else "00"
+                hourly[key].append(i)
+            for hh, rows in hourly.items():
+                vals = [r["value"] for r in rows if r["value"] is not None]
+                if not vals:
+                    continue
+                lo, hi = min(vals), max(vals)
+                for r in rows:
+                    ex = parse_extra(r)
+                    for k in ("min", "max"):
+                        v2 = ex.get(k)
+                        if isinstance(v2, (int, float)):
+                            lo, hi = min(lo, v2), max(hi, v2)
+                hts = f"{day} {hh}:00:00 +0800" if hh.isdigit() else ts
+                out.append((metric, day, hts, round(sum(vals) / len(vals), 2),
+                            json.dumps({"min": lo, "max": hi}), time.time()))
+            continue
+
+        if metric == "workout":
             sessions, total = [], 0.0
             for i in items:
-                try:
-                    ex = json.loads(i.get("extra") or "{}")
-                except (TypeError, ValueError):
-                    ex = {}
+                ex = parse_extra(i)
                 mins = i["value"] or 0
                 total += mins
                 sessions.append({
@@ -568,10 +579,7 @@ def _fold_daily(samples):
         elif metric == "sleep":
             unseen, seen = [], set()
             for i in items:
-                try:
-                    ex = json.loads(i.get("extra") or "{}")
-                except (TypeError, ValueError):
-                    ex = {}
+                ex = parse_extra(i)
                 w = ex.get("window")
                 key = (str(w[0]), str(w[1])) if isinstance(w, list) and len(w) == 2 else None
                 if key and key in seen:
@@ -693,6 +701,21 @@ def days_api(request: Request, start: str = "", end: str = ""):
         item["sleep_window"] = se.get("window")
         sessions = workout_sessions.get(day, [])
         item["workouts"] = sessions
+        # 当天心率的小时序列（前端画一天内波动曲线用）
+        series = []
+        for r in rows:
+            if r["metric"] != "heart_rate" or r.get("day") != day or not r.get("ts"):
+                continue
+            hh = str(r["ts"])[11:13]
+            if not hh.isdigit() or " 00:00:00" in str(r["ts"]):
+                continue
+            try:
+                ex = json.loads(r.get("extra") or "{}")
+            except (TypeError, ValueError):
+                ex = {}
+            series.append({"h": int(hh), "avg": round(r["value"], 1) if r["value"] else None,
+                           "min": ex.get("min"), "max": ex.get("max")})
+        item["hr_series"] = sorted(series, key=lambda x: x["h"])
         # 运动消耗（来自每次训练），前端把它加到「活动能量」上
         item["workout_energy"] = round(sum(
             (s.get("energy") or 0) for s in sessions if isinstance(s.get("energy"), (int, float))
@@ -765,7 +788,7 @@ def demo(request: Request):
 @app.api_route("/healthz", methods=["GET", "HEAD"])
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-23T0340"}
+    return {"ok": True, "rev": "2026-11-23T0400"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -832,6 +855,7 @@ def apple_icon():
 @app.api_route("/", methods=["GET", "HEAD"])
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
 
 
 
