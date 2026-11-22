@@ -40,14 +40,14 @@
     margin:22px 4px 8px;font-weight:500}
 
   /* 日期条 */
-  .strip{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:none}
+  .strip{display:flex;gap:7px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none}
   .strip::-webkit-scrollbar{display:none}
-  .dchip{flex:none;width:58px;padding:8px 0 7px;border-radius:14px;background:#fff;border:none;
+  .dchip{flex:none;width:46px;padding:7px 0 6px;border-radius:13px;background:#fff;border:none;
     box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;gap:2px;
     cursor:pointer;transition:transform .12s}
   .dchip:active{transform:scale(.95)}
-  .dchip .w{font-size:11px;color:var(--sub)}
-  .dchip .n{font-size:14px;font-weight:600;letter-spacing:-.2px;font-variant-numeric:tabular-nums}
+  .dchip .w{font-size:10.5px;color:var(--sub)}
+  .dchip .n{font-size:12.5px;font-weight:600;letter-spacing:-.3px;font-variant-numeric:tabular-nums}
   .dchip .dot{width:4px;height:4px;border-radius:50%;background:var(--green);margin-top:2px;opacity:0}
   .dchip.has .dot{opacity:1}
   .dchip.sel{background:#000;color:#fff}
@@ -275,7 +275,7 @@ async function fetchWarm(url, tries = 8) {
 }
 
 /* ============ 组件 ============ */
-function dateStrip(el, onPick, days = 30) {
+function dateStrip(el, onPick, days = 7) {
   // 如果选中的日期比默认范围更早（例如从日历跳到上个月），把范围一起往前扩，
   // 否则会出现「选中了但日期条里没有这一天」
   const selD = parseISO(selected);
