@@ -755,6 +755,17 @@ def days_api(request: Request, start: str = "", end: str = ""):
             "today": out[-1] if out else None, "days": out}
 
 
+@app.post("/api/devices/name")
+def name_device(request: Request, who: str = "", name: str = ""):
+    """给设备起个名字（默认统计只有一个 token，分不出人，这里手动标注）。"""
+    if not _token_ok(request, VIEW_TOKEN):
+        return JSONResponse({"ok": False, "error": "bad token"}, status_code=401)
+    if not who or not name:
+        return JSONResponse({"ok": False, "error": "需要 who 和 name"}, status_code=400)
+    STORE.set_device_name(who.strip(), name.strip()[:20])
+    return {"ok": True, "who": who.strip(), "name": name.strip()[:20]}
+
+
 @app.get("/api/visits")
 def visits_api(request: Request, days: int = 7):
     """谁在什么时候看了数据（按天 + 按设备汇总）。"""
@@ -774,6 +785,8 @@ def visits_api(request: Request, days: int = 7):
 
     rows = [r for r in rows if is_human(r.get("ua"))]
 
+    names = STORE.device_names()
+
     by_day = {}
     for r in rows:
         d = by_day.setdefault(r["day"], {})
@@ -784,7 +797,7 @@ def visits_api(request: Request, days: int = 7):
 
     out = []
     for day in sorted(by_day, reverse=True):
-        devs = [{"who": k, "visits": v["n"],
+        devs = [{"who": k, "name": names.get(k) or "未命名设备", "visits": v["n"],
                  "first": str(v["first"])[11:16],
                  "last": str(v["last"])[11:16],
                  "ua": v["ua"]}
@@ -856,7 +869,7 @@ def demo(request: Request):
 @app.api_route("/healthz", methods=["GET", "HEAD"])
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-23T0515"}
+    return {"ok": True, "rev": "2026-11-23T0530"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -923,6 +936,7 @@ def apple_icon():
 @app.api_route("/", methods=["GET", "HEAD"])
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
 
 
 
