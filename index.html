@@ -42,12 +42,12 @@
   /* 日期条 */
   .strip{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:none}
   .strip::-webkit-scrollbar{display:none}
-  .dchip{flex:none;width:50px;padding:8px 0 7px;border-radius:14px;background:#fff;border:none;
+  .dchip{flex:none;width:58px;padding:8px 0 7px;border-radius:14px;background:#fff;border:none;
     box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;gap:2px;
     cursor:pointer;transition:transform .12s}
   .dchip:active{transform:scale(.95)}
   .dchip .w{font-size:11px;color:var(--sub)}
-  .dchip .n{font-size:17px;font-weight:600}
+  .dchip .n{font-size:14px;font-weight:600;letter-spacing:-.2px;font-variant-numeric:tabular-nums}
   .dchip .dot{width:4px;height:4px;border-radius:50%;background:var(--green);margin-top:2px;opacity:0}
   .dchip.has .dot{opacity:1}
   .dchip.sel{background:#000;color:#fff}
@@ -204,24 +204,33 @@ async function fetchWarm(url, tries = 8) {
 }
 
 /* ============ 组件 ============ */
-function dateStrip(el, onPick, days = 14) {
+function dateStrip(el, onPick, days = 30) {
   const items = [];
   for (let i = days - 1; i >= 0; i--) {   // 升序：最左最早，最右今天
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
     items.push(iso(d));
   }
+  const yday = iso(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
   el.innerHTML = items.map(k => {
     const rec = dayMap[k];
-    const label = k === TODAY ? '今天' : k === iso(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)) ? '昨天' : wd(k);
+    const d = parseISO(k);
+    const label = k === TODAY ? '今天' : k === yday ? '昨天' : wd(k);
+    // 日期带年月日；不是今年就把年份也写出来
+    const dateTxt = (d.getFullYear() !== now.getFullYear() ? `${String(d.getFullYear()).slice(2)}/` : '')
+      + `${d.getMonth() + 1}/${d.getDate()}`;
     return `<button class="dchip ${k === selected ? 'sel' : ''} ${rec && rec.has_data ? 'has' : ''}" data-k="${k}">
       <span class="w">${label}</span>
-      <span class="n">${parseISO(k).getDate()}</span>
+      <span class="n">${dateTxt}</span>
       <span class="dot"></span>
     </button>`;
   }).join('');
   el.querySelectorAll('[data-k]').forEach(b => b.addEventListener('click', () => onPick(b.dataset.k)));
   // 默认滚到最右边（今天/昨天可见）
-  requestAnimationFrame(() => { el.scrollLeft = el.scrollWidth; });
+  requestAnimationFrame(() => {
+    el.scrollLeft = el.scrollWidth;
+    const sel = el.querySelector('.dchip.sel');
+    if (sel) sel.scrollIntoView({ inline: 'center', block: 'nearest' });
+  });
 }
 
 /** 统一的「卡路里」口径：健康 App 的活动能量 + 当天运动消耗 */
@@ -467,7 +476,7 @@ $$('[data-back]').forEach(b => b.addEventListener('click', () => nav('home')));
     return;
   }
   try {
-    const start = iso(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 45));
+    const start = iso(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 60));
     const data = await fetchWarm(`/api/days?start=${start}&end=${TODAY}&token=${encodeURIComponent(TOKEN)}`);
     (data.days || []).forEach(d => { dayMap[d.day] = d; });
     // 默认选中「昨天」，没有数据就退回最近有数据的一天
