@@ -40,9 +40,9 @@
     margin:22px 4px 8px;font-weight:500}
 
   /* 日期条 */
-  .strip{display:flex;gap:7px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none}
+  .strip{display:flex;gap:6px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none}
   .strip::-webkit-scrollbar{display:none}
-  .dchip{flex:none;width:46px;padding:7px 0 6px;border-radius:13px;background:#fff;border:none;
+  .dchip{flex:none;width:44px;padding:7px 0 6px;border-radius:13px;background:#fff;border:none;
     box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;gap:2px;
     cursor:pointer;transition:transform .12s}
   .dchip:active{transform:scale(.95)}
@@ -145,6 +145,18 @@
     cursor:pointer;background:#F2F2F7;color:#1C1C1E}
   .calfoot button.primary{background:#007AFF;color:#fff}
   .calfoot button:active{opacity:.75}
+
+  /* ---- 图表：纵轴 + 可点击数据点 ---- */
+  .chart-wrap{position:relative;padding:0 2px}
+  .chart-tip{position:absolute;transform:translate(-50%,-118%);background:rgba(28,28,30,.92);
+    color:#fff;font-size:12px;line-height:1.35;padding:6px 9px;border-radius:9px;white-space:nowrap;
+    pointer-events:none;opacity:0;transition:opacity .14s;z-index:5;font-variant-numeric:tabular-nums}
+  .chart-tip.on{opacity:1}
+  .chart-tip::after{content:'';position:absolute;left:50%;bottom:-4px;margin-left:-4px;width:8px;height:8px;
+    background:rgba(28,28,30,.92);transform:rotate(45deg)}
+  .chart-dot{cursor:pointer}
+  .chart-dot .hit{fill:transparent}
+  .chart-dot.on circle.pt{fill:#FF3B30;stroke:#fff;stroke-width:2.5}
 </style>
 </head>
 <body>
@@ -198,6 +210,11 @@
 </div>
 
 <div class="mask" id="mask"></div>
+
+<div class="sheet" id="day">
+  <div class="grab"></div>
+  <div id="day-body"></div>
+</div>
 
 <div class="sheet" id="cal">
   <div class="grab"></div>
@@ -310,13 +327,106 @@ function dateStrip(el, onPick, days = 7) {
       if (sel) sel.scrollIntoView({ inline: 'center', block: 'nearest' });
       else el.scrollLeft = el.scrollWidth;
     });
-  } else if (el.dataset.sel !== selected) {
+  } else if (el.dataset.sel !== selected && el.scrollWidth > el.clientWidth + 4) {
     requestAnimationFrame(() => {
       const sel = el.querySelector('.dchip.sel');
       if (sel) sel.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
     });
   }
   el.dataset.sel = selected;
+}
+
+
+/**
+ * 折线 + 面积图，带纵轴刻度和可点击数据点
+ * points: [{ x: 0..1, y: 数值, tip: '点击后显示的文字' }]
+ */
+function lineChart(points, { color = '#FF3B30', h = 180, unit = 'bpm', labelEvery = 1 } = {}) {
+  const pts0 = points.filter(p => p.y != null);
+  if (!pts0.length) return '<div class="empty">暂无图表数据</div>';
+
+  const W = 340, padL = 36, padR = 12, padT = 12, padB = 26;
+  const ys = pts0.map(p => p.y);
+  let lo = Math.min(...ys), hi = Math.max(...ys);
+  if (hi - lo < 8) { const mid = (hi + lo) / 2; lo = mid - 5; hi = mid + 5; }
+  lo = Math.max(0, Math.floor(lo * 0.94 / 10) * 10);
+  hi = Math.ceil(hi * 1.04 / 10) * 10;
+
+  const X = p => padL + p.x * (W - padL - padR);
+  const Y = v => padT + (1 - (v - lo) / (hi - lo || 1)) * (h - padT - padB);
+
+  const pts = pts0.map(p => ({ x: X(p), y: Y(p.y), tip: p.tip }));
+
+  // 平滑曲线
+  let d = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    const c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+  }
+  const base = h - padB;
+  const area = `${d} L${pts[pts.length - 1].x.toFixed(1)},${base} L${pts[0].x.toFixed(1)},${base} Z`;
+  const gid = 'g' + Math.random().toString(36).slice(2, 7);
+
+  // 纵轴刻度（4 条）
+  const ticks = [0, 1, 2, 3].map(i => lo + ((hi - lo) / 3) * i);
+  const grid = ticks.map(v => `
+    <line x1="${padL}" y1="${Y(v).toFixed(1)}" x2="${W - padR}" y2="${Y(v).toFixed(1)}"
+      stroke="#EDEDF0" stroke-width="1" stroke-dasharray="${v === lo ? 0 : 3} ${v === lo ? 0 : 3}"/>
+    <text x="${padL - 7}" y="${(Y(v) + 3.5).toFixed(1)}" text-anchor="end"
+      font-size="9.5" fill="#B0B7C3">${Math.round(v)}</text>`).join('');
+
+  const dots = pts.map((p, i) => `
+    <g class="chart-dot" data-i="${i}">
+      <circle class="hit" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="13"/>
+      <circle class="pt" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.2"
+        fill="#fff" stroke="${color}" stroke-width="2" data-tip="${(p.tip || '').replace(/"/g, '&quot;')}"/>
+    </g>`).join('');
+
+  return `<div class="chart-wrap">
+    <svg viewBox="0 0 ${W} ${h}" style="width:100%;height:${h}px;display:block;overflow:visible">
+      <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${color}" stop-opacity=".26"/>
+        <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+      </linearGradient></defs>
+      ${grid}
+      <path d="${area}" fill="url(#${gid})"/>
+      <path d="${d}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      ${dots}
+    </svg>
+    <div class="chart-tip"></div>
+  </div>`;
+}
+
+/** 给图表加上「点一下显示数值」 */
+function bindChartTips(root) {
+  root.querySelectorAll('.chart-wrap').forEach(wrap => {
+    const tip = wrap.querySelector('.chart-tip');
+    const svg = wrap.querySelector('svg');
+    const box = () => wrap.getBoundingClientRect();
+    wrap.querySelectorAll('.chart-dot').forEach(dot => {
+      const i = Number(dot.dataset.i);
+      const circle = dot.querySelector('.pt');
+      dot.addEventListener('click', ev => {
+        ev.stopPropagation();
+        wrap.querySelectorAll('.chart-dot').forEach(d => d.classList.remove('on'));
+        dot.classList.add('on');
+        // 把 svg 坐标换算成容器像素坐标
+        const r = circle.getBoundingClientRect(), b = box();
+        tip.innerHTML = circle.dataset.tip || '';
+        const cx = r.left - b.left + r.width / 2;
+        tip.style.left = Math.max(52, Math.min(cx, b.width - 52)) + 'px';
+        tip.style.top = (r.top - b.top) + 'px';
+        tip.classList.add('on');
+      });
+    });
+    // 点空白处收起
+    wrap.addEventListener('click', () => {
+      wrap.querySelectorAll('.chart-dot').forEach(d => d.classList.remove('on'));
+      tip.classList.remove('on');
+    });
+  });
 }
 
 /** 统一的「卡路里」口径：健康 App 的活动能量 + 当天运动消耗 */
@@ -395,7 +505,7 @@ function renderHome() {
        <div style="font-size:13.5px;color:#8E8E93">${md(t.day)} 这天还没有同步到数据</div>
      </div>`;
 
-  $('#hero-home').innerHTML = hint + `<div class="card hero"><div class="empty">还没有数据，等手机同步一次</div></div>`;
+  $('#hero-home').innerHTML = hint + `<div class="card hero" data-day="${t.day}" data-day="${t.day}"><div class="empty">还没有数据，等手机同步一次</div></div>`;
     $('#grid-home').innerHTML = '';
     return;
   }
@@ -413,7 +523,7 @@ function renderHome() {
        <div style="font-size:13.5px;color:#8E8E93">${md(t.day)} 这天还没有同步到数据</div>
      </div>`;
 
-  $('#hero-home').innerHTML = hint + `<div class="card hero">
+  $('#hero-home').innerHTML = hint + `<div class="card hero" data-day="${t.day}" data-day="${t.day}">
     ${ringSVG(t)}
     <div class="legend">
       <div class="leg"><span class="dot" style="background:#FF3B30"></span><span class="k">卡路里</span><b>${energy}</b><span>/ ${GOALS.energy}</span></div>
@@ -423,7 +533,7 @@ function renderHome() {
   </div>`;
 
   const tile = (icon, color, title, value, unit, sub, go) => `
-    <div class="card tile" ${go ? `data-go="${go}"` : ''}>
+    <div class="card tile" data-day="${t.day}" ${go ? `data-go="${go}"` : ''}>
       <div class="ico" style="background:${color}">${svg(icon)}</div>
       <div class="h">${title}</div>
       <div class="v">${value}${unit ? `<small>${unit}</small>` : ''}</div>
@@ -441,7 +551,14 @@ function renderHome() {
     tile('scale', '#34C759', '体重', weight ?? '--', weight != null ? 'kg' : '', weight != null ? md(t.day) : '暂无数据', ''),
   ].join('');
 
-  $$('#grid-home [data-go]').forEach(el => el.addEventListener('click', () => nav(el.dataset.go)));
+  const heroCard = document.querySelector('#hero-home .hero');
+  if (heroCard && heroCard.dataset.day) {
+    heroCard.addEventListener('click', () => openDaySheet(heroCard.dataset.day));
+  }
+  $$('#grid-home .tile').forEach(el => el.addEventListener('click', () => {
+    if (el.dataset.go) nav(el.dataset.go);   // 心率 / 运动 → 独立详情页
+    else openDaySheet(el.dataset.day);       // 其它 → 当天明细弹层
+  }));
 }
 
 /* ============ 心率详情 ============ */
@@ -467,11 +584,20 @@ function renderHR() {
   const intraday = series.length >= 3;
   let chartHtml, axisHtml;
   if (intraday) {
-    const pts = series.map(p => ({ x: p.h / 23, y: p.avg }));
-    chartHtml = areaChart(pts, { color: '#FF3B30', h: 150 });
+    const pts = series.map(p => ({
+      x: p.h / 23,
+      y: p.avg,
+      tip: `${String(p.h).padStart(2, '0')}:00 · 平均 ${Math.round(p.avg)} bpm`
+        + (p.min != null && p.max != null ? `<br>${Math.round(p.min)}–${Math.round(p.max)}` : '')
+    }));
+    chartHtml = lineChart(pts, { color: '#FF3B30', h: 180 });
     axisHtml = [0, 6, 12, 18, 23].map(h => `<span>${String(h).padStart(2, '0')}:00</span>`).join('');
   } else {
-    chartHtml = areaChart(trend.map(p => ({ x: p.x, y: p.y })), { color: '#FF3B30' });
+    const pts = trend.map(p => ({
+      x: p.x, y: p.y,
+      tip: `${p.label} · 平均 ${Math.round(p.y)} bpm`
+    }));
+    chartHtml = lineChart(pts, { color: '#FF3B30', h: 180 });
     axisHtml = trend.map(p => `<span>${p.label.split('月')[1].replace('日', '')}</span>`).join('');
   }
 
@@ -494,6 +620,8 @@ function renderHR() {
       <div class="row"><span class="l">${svg('heart')}静息心率</span><span class="r">${t.resting_hr ?? '--'} bpm</span></div>
       <div class="row"><span class="l">${svg('timer')}平均心率</span><span class="r">${t.hr_avg} bpm</span></div>
     </div>`;
+
+  bindChartTips($('#hr-body'));
 }
 
 /* ============ 运动详情 ============ */
@@ -508,7 +636,10 @@ function renderAct() {
     const k = iso(d);
     days.push({ k, steps: dayMap[k]?.steps || 0, label: md(k) });
   }
-  const trend = days.map((d, i) => ({ x: i / 6, y: d.steps }));
+  const trend = days.map((d, i) => ({
+    x: i / 6, y: d.steps,
+    tip: `${d.label} · ${d.steps.toLocaleString('zh-CN')} 步`
+  }));
 
   const wlist = (t.workouts || []).map(w => {
     const hour = Number((w.start || '').slice(11, 13)) || 0;
@@ -535,7 +666,7 @@ function renderAct() {
 
     <div class="card chartcard" style="margin-top:12px;cursor:default">
       <div class="cap">最近 7 天步数</div>
-      ${areaChart(trend, { color: '#34C759' })}
+      ${lineChart(trend, { color: '#34C759', h: 165 })}
       <div style="display:flex;justify-content:space-between;font-size:11px;color:#C7C7CC;padding:2px 10px 6px">
         ${days.map(d => `<span>${d.label}</span>`).join('')}
       </div>
@@ -554,6 +685,8 @@ function renderAct() {
       })()}</span></div>
       <div class="row"><span class="l">${svg('timer')}锻炼时长</span><span class="r">${t.workout_minutes ? Math.round(t.workout_minutes) + ' 分钟' : '--'}</span></div>
     </div>`;
+
+  bindChartTips($('#act-body'));
 }
 
 /* ============ 视图切换 ============ */
@@ -566,6 +699,51 @@ function nav(view) {
 }
 $$('[data-back]').forEach(b => b.addEventListener('click', () => nav('home')));
 
+
+
+/* ============ 当天明细弹层 ============ */
+function openDaySheet(key) {
+  const r = dayMap[key];
+  if (!r) return;
+  const ex = r.extras || {};
+  const d = parseISO(key);
+  const rows = [];
+  const row = (icon, k, v) => `<div class="row"><span class="l">${svg(icon)}${k}</span><span class="r">${v}</span></div>`;
+
+  if (r.sleep_hours != null) {
+    const w = r.sleep_window;
+    rows.push(row('bed', '睡眠', `${Math.floor(r.sleep_hours)}小时${Math.round((r.sleep_hours % 1) * 60)}分`
+      + (w ? ` · ${clock(w[0])}–${clock(w[1])}` : '')));
+  }
+  if (r.hr_avg != null) rows.push(row('heart', '心率', `${r.hr_avg} 次/分（${r.hr_min ?? '--'}–${r.hr_max ?? '--'}）`));
+  if (r.steps != null) rows.push(row('shoe', '步数', `${r.steps.toLocaleString('zh-CN')} 步`));
+  if (r.workout_minutes) rows.push(row('timer', '运动', `${Math.round(r.workout_minutes)} 分钟`));
+  if (ex.active_energy != null || r.workout_energy) rows.push(row('flame', '卡路里', `${totalEnergy(r)} 千卡`));
+  if (ex.walking_running_distance != null) rows.push(row('route', '步行距离', `${Math.round(ex.walking_running_distance * 10) / 10} 公里`));
+  if (ex.flights_climbed != null) rows.push(row('stairs', '爬楼', `${Math.round(ex.flights_climbed)} 层`));
+  if (ex.oxygen_saturation != null) {
+    const v = ex.oxygen_saturation <= 1.5 ? Math.round(ex.oxygen_saturation * 100) : Math.round(ex.oxygen_saturation);
+    rows.push(row('drop', '血氧', `${v}%`));
+  }
+  const weight = ex.weight ?? ex.body_mass;
+  if (weight != null) rows.push(row('scale', '体重', `${weight} kg`));
+
+  $('#day-body').innerHTML = `
+    <h3 style="margin:2px 0 2px;font-size:19px;font-weight:650">${d.getMonth() + 1} 月 ${d.getDate()} 日</h3>
+    <div style="font-size:12.5px;color:#8E8E93;margin-bottom:12px">
+      ${r.updated_at ? '更新于 ' + r.updated_at : '暂无同步记录'}
+    </div>
+    ${rows.length ? `<div class="list" style="box-shadow:none">${rows.join('')}</div>`
+                  : '<div class="empty">这一天还没有数据</div>'}
+    <div class="calfoot"><button class="primary" id="day-close">完成</button></div>`;
+
+  $('#day').classList.add('on');
+  $('#mask').classList.add('on');
+  $('#day-close').addEventListener('click', () => {
+    $('#day').classList.remove('on');
+    $('#mask').classList.remove('on');
+  });
+}
 
 /* ============ 跳到某天（日历） ============ */
 const CAL_ICON = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -627,7 +805,11 @@ $('#cal-prev').addEventListener('click', () => { calM--; if (calM < 0) { calM = 
 $('#cal-next').addEventListener('click', () => { calM++; if (calM > 11) { calM = 0; calY++; } renderCalendar(); });
 $('#cal-today').addEventListener('click', () => { selected = TODAY; closeCal(); refreshCurrent(); });
 $('#cal-close').addEventListener('click', closeCal);
-$('#mask').addEventListener('click', closeCal);
+$('#mask').addEventListener('click', () => {
+  closeCal();
+  const d = $('#day');
+  if (d) d.classList.remove('on');
+});
 ['#cal-home', '#hr-date', '#act-date'].forEach(s => {
   const el = $(s);
   if (el) el.addEventListener('click', openCalendar);
@@ -652,7 +834,7 @@ $('#mask').addEventListener('click', closeCal);
        <div style="font-size:13.5px;color:#8E8E93">${md(t.day)} 这天还没有同步到数据</div>
      </div>`;
 
-  $('#hero-home').innerHTML = hint + `<div class="card hero"><div class="empty">链接缺少口令，请用带 ?token= 的完整链接打开</div></div>`;
+  $('#hero-home').innerHTML = hint + `<div class="card hero" data-day="${t.day}" data-day="${t.day}"><div class="empty">链接缺少口令，请用带 ?token= 的完整链接打开</div></div>`;
     return;
   }
   try {
@@ -667,6 +849,32 @@ $('#mask').addEventListener('click', closeCal);
     renderHome();
     const h = location.hash.replace('#', '');
     if (h === 'hr' || h === 'act') nav(h);
+    // 深链：?dot=N 自动点开第 N 个数据点（排查用）
+    const dotN = new URLSearchParams(location.search).get('dot');
+    if (dotN) (function () {
+      document.querySelectorAll('.chart-tip').forEach(t => { t.style.transition = 'none'; });
+      const d = document.querySelectorAll('.chart-dot')[Number(dotN)];
+      if (d) {
+        d.classList.add('on');
+        const c = d.querySelector('.pt');
+        const tip = d.closest('.chart-wrap')?.querySelector('.chart-tip');
+        const wrap = d.closest('.chart-wrap');
+        if (tip && wrap) {
+          const r = c.getBoundingClientRect(), b = wrap.getBoundingClientRect();
+          tip.innerHTML = c.dataset.tip || 'no tip';
+          tip.style.left = (r.left - b.left + r.width / 2) + 'px';
+          tip.style.top = (r.top - b.top) + 'px';
+          tip.classList.add('on');
+        }
+      }
+    })();
+    // 深链：?sheet=1 直接打开当天明细（排查用）
+    if (new URLSearchParams(location.search).get('sheet') === '1') {
+      const el = document.querySelector('#day');
+      if (el) el.style.transition = 'none';
+      document.querySelector('#mask').style.transition = 'none';
+      openDaySheet(selected);
+    }
     // 深链：?cal=1 直接打开日期选择器（排查/分享用）
     if (new URLSearchParams(location.search).get('cal') === '1') {
       document.querySelector('#cal').style.transition = 'none';
@@ -679,9 +887,15 @@ $('#mask').addEventListener('click', closeCal);
        <div style="font-size:13.5px;color:#8E8E93">${md(t.day)} 这天还没有同步到数据</div>
      </div>`;
 
-  $('#hero-home').innerHTML = hint + `<div class="card hero"><div class="empty">${
-      e.message === 'AUTH' ? '口令不对，请用完整链接打开' : '正在唤醒服务，稍后自动重试…'}</div></div>`;
-    setTimeout(() => location.reload(), 8000);
+    const auth = e.message === 'AUTH';
+    $('#hero-home').innerHTML = hint + `<div class="card hero" data-day="${t.day}" data-day="${t.day}"><div class="empty">${
+      auth ? '口令不对，请用带 ?token= 的完整链接打开' : '正在唤醒服务，稍后自动重试…'}</div></div>`;
+    if (auth) return;                    // 口令错了刷新多少次都没用
+    const n = Number(sessionStorage.getItem('wakeN') || 0);
+    if (n < 5) {                         // 最多重试 5 次，间隔逐步拉长
+      sessionStorage.setItem('wakeN', String(n + 1));
+      setTimeout(() => location.reload(), 5000 + n * 3000);
+    }
   }
 })();
 </script>
