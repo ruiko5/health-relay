@@ -3,188 +3,110 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#f2f5fa" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#111519" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F5F6F8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="健康日报">
+<meta name="apple-mobile-web-app-title" content="憨憨的健康数据">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="icon" href="/icon-192.png">
-<title>健康日报</title>
+<title>憨憨的健康数据</title>
 <style>
   :root{
-    --bg:#f2f5fa; --bg2:#e9eef7; --card:#ffffff; --ink:#131a24; --muted:#7b879a;
-    --line:#eaeff6; --chip:#f2f5fa;
-    --sleep:#6c7cf0; --sleep2:#9aa6ff;
-    --steps:#f2994a; --steps2:#ffc38a;
-    --hr:#ec5b5b; --ok:#2fb388; --warn:#e0a03a;
-    --shadow:0 1px 2px rgba(20,35,70,.05), 0 10px 30px -18px rgba(20,35,70,.35);
-  }
-  @media (prefers-color-scheme: dark){
-    :root{
-      --bg:#0f1318; --bg2:#0b0f14; --card:#171d24; --ink:#e9eef6; --muted:#8b98a9;
-      --line:#232b35; --chip:#1e252e;
-      --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 32px -20px rgba(0,0,0,.8);
-    }
+    --bg:#F5F6F8; --card:#FFFFFF; --ink:#111827; --sub:#9CA3AF; --line:#F1F2F4;
+    --shadow:0 2px 10px rgba(17,24,39,.06), 0 8px 24px -12px rgba(17,24,39,.10);
+    --ring-energy:#FF9500; --ring-steps:#34C759; --ring-move:#007AFF;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;padding:0}
+  html,body{margin:0;padding:0;background:var(--bg)}
   body{
-    background:linear-gradient(170deg,var(--bg) 0%,var(--bg2) 100%);
-    min-height:100vh;color:var(--ink);
-    font:16px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans CJK SC","Microsoft YaHei",Roboto,sans-serif;
-    padding:max(16px,env(safe-area-inset-top)) 16px calc(32px + env(safe-area-inset-bottom));
+    font:16px/1.45 -apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
+    color:var(--ink);
+    display:flex;justify-content:center;
+    padding:max(10px,env(safe-area-inset-top)) 0 0;
   }
-  .wrap{max-width:480px;margin:0 auto}
-  /* ---------- header ---------- */
-  header{display:flex;align-items:flex-end;justify-content:space-between;margin:4px 2px 16px}
-  h1{font-size:22px;margin:0;letter-spacing:-.4px;font-weight:650}
-  .sub{font-size:12.5px;color:var(--muted);margin-top:4px}
-  .live{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);white-space:nowrap}
-  .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(47,179,136,.15)}
-  .dot.stale{background:var(--warn);box-shadow:0 0 0 3px rgba(224,160,58,.15)}
-  /* ---------- cards ---------- */
-  .card{background:var(--card);border-radius:20px;padding:16px 16px 15px;box-shadow:var(--shadow);margin-bottom:12px}
-  .card h2{font-size:12.5px;font-weight:600;color:var(--muted);margin:0 0 10px;letter-spacing:.5px;
-    display:flex;justify-content:space-between;align-items:center;gap:8px}
-  .big{font-size:34px;font-weight:660;letter-spacing:-1.2px;line-height:1.08;font-variant-numeric:tabular-nums}
-  .big small{font-size:13.5px;font-weight:500;color:var(--muted);margin-left:3px;letter-spacing:0}
-  .hint{font-size:12px;color:var(--muted);margin-top:7px}
-  .tag{font-size:11px;padding:2px 8px;border-radius:20px;background:var(--chip);color:var(--muted);font-weight:500;white-space:nowrap}
-  .bar{height:8px;border-radius:8px;background:var(--line);overflow:hidden;margin-top:12px}
-  .bar>i{display:block;height:100%;border-radius:8px;transition:width .6s cubic-bezier(.2,.8,.2,1)}
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
-  .grid2 .card{margin:0}
-  /* ---------- Apple 健康风格卡片 ---------- */
-  .mcard{background:var(--card);border-radius:22px;padding:15px 16px 14px;box-shadow:var(--shadow);margin-bottom:12px;cursor:pointer}
-  .mcard .top{display:flex;align-items:center;gap:9px;margin-bottom:10px}
-  .mcard .nm{font-size:13px;color:var(--muted);font-weight:500}
-  .mcard .val{font-size:27px;font-weight:660;letter-spacing:-.8px;line-height:1.15;font-variant-numeric:tabular-nums}
-  .mcard .val small{font-size:12.5px;color:var(--muted);font-weight:500;margin-left:3px;letter-spacing:0}
-  .mcard .sub{font-size:11.5px;color:var(--muted);margin-top:5px}
-  .mcard.hero{padding:17px 17px 15px}
-  .mcard.wide{grid-column:1 / -1}
-  .badge{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:none}
-  .badge svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-  .badge.sleep{background:linear-gradient(140deg,#a3acff,#6c7cf0)}
-  .badge.steps{background:linear-gradient(140deg,#8fe08f,#3fae4f)}
-  .badge.heart{background:linear-gradient(140deg,#ff9a9a,#e5484d)}
-  .badge.energy{background:linear-gradient(140deg,#ffc078,#f2811f)}
-  .badge.dist{background:linear-gradient(140deg,#7adbd4,#1fa79f)}
-  .badge.oxygen{background:linear-gradient(140deg,#7fb4ff,#2f6bd8)}
-  .badge.stress{background:linear-gradient(140deg,#ffd27a,#e8892b)}
-  .notice{font-size:12.5px;line-height:1.65;color:var(--muted);background:var(--chip);
-    border:1px solid var(--line);padding:13px 15px}
-  .notice b{color:var(--ink);font-weight:600}
-  /* ---------- hero ---------- */
-  .hero{padding:18px 18px 16px}
-  .hero .row{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
-  .ring{position:relative;width:76px;height:76px;flex:none}
-  .ring svg{transform:rotate(-90deg)}
-  .ring b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-    font-size:16px;font-weight:650;letter-spacing:-.4px}
-  /* ---------- trend ---------- */
-  .trend{margin-top:4px}
-  .bars{display:flex;align-items:flex-end;gap:6px;height:96px;padding-top:18px}
-  .bcol{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;
-    cursor:pointer;position:relative;height:100%}
-  .bcol .v{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;opacity:.9;white-space:nowrap}
-  .bcol .b{width:100%;border-radius:7px 7px 4px 4px;background:linear-gradient(180deg,var(--steps2),var(--steps));
-    min-height:3px;transition:filter .15s, transform .15s}
-  .bcol.sleep .b{background:linear-gradient(180deg,var(--sleep2),var(--sleep))}
-  .bcol:active .b{filter:brightness(.94);transform:scaleY(.98)}
-  .bcol.empty .b{background:var(--line)}
-  .axis{display:flex;gap:6px;margin-top:6px;font-size:10.5px;color:var(--muted)}
-  .axis span{flex:1;text-align:center;min-width:0;overflow:hidden}
-  .avgrow{display:flex;gap:10px;margin-top:12px}
-  .avg{flex:1;background:var(--chip);border-radius:12px;padding:9px 11px}
-  .avg em{display:block;font-style:normal;font-size:11px;color:var(--muted);margin-bottom:2px}
-  .avg b{font-size:16px;font-weight:640;font-variant-numeric:tabular-nums}
-  /* ---------- calendar ---------- */
-  .calhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-  .calhead .m{font-size:14.5px;font-weight:640;letter-spacing:-.2px}
-  .nav{display:flex;gap:6px}
-  .nav button{width:30px;height:30px;border-radius:10px;border:1px solid var(--line);background:var(--card);
-    color:var(--ink);font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer}
-  .nav button:active{background:var(--chip)}
-  .wd{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px}
-  .wd span{text-align:center;font-size:10.5px;color:var(--muted)}
-  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
-  .cell{position:relative;aspect-ratio:1/1;border-radius:11px;background:var(--chip);border:none;padding:0;
-    display:flex;flex-direction:column;align-items:center;justify-content:flex-start;cursor:pointer;
-    color:var(--ink);font:inherit;overflow:hidden;transition:transform .12s}
-  .cell:active{transform:scale(.95)}
-  .cell.dim{opacity:.32}
-  .cell.future{opacity:.42}
-  .cell.today{box-shadow:inset 0 0 0 2px var(--steps)}
-  .cell.sel{box-shadow:inset 0 0 0 2px var(--sleep)}
-  .cell .d{font-size:11.5px;line-height:1;margin-top:7px;font-variant-numeric:tabular-nums}
-  .cell .s{font-size:9.5px;color:var(--muted);margin-top:2px;font-variant-numeric:tabular-nums}
-  .cell .fill{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,rgba(242,153,74,.25),rgba(242,153,74,.55))}
-  .cell .moon{position:absolute;top:5px;right:5px;width:4px;height:4px;border-radius:50%;background:var(--sleep)}
-  /* ---------- month summary ---------- */
-  .mstats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
-  .mstat{background:var(--chip);border-radius:12px;padding:9px 10px;text-align:center}
-  .mstat em{display:block;font-style:normal;font-size:10.5px;color:var(--muted)}
-  .mstat b{font-size:15px;font-weight:640;font-variant-numeric:tabular-nums}
-  /* ---------- sheet ---------- */
-  .mask{position:fixed;inset:0;background:rgba(10,16,26,.45);opacity:0;pointer-events:none;
-    transition:opacity .22s;z-index:40;backdrop-filter:blur(2px)}
+  .app{width:100%;max-width:420px;padding:0 18px calc(28px + env(safe-area-inset-bottom))}
+
+  /* ---------- 顶部 ---------- */
+  header{display:flex;align-items:center;justify-content:space-between;padding:14px 2px 6px}
+  .iconbtn{width:36px;height:36px;border-radius:50%;border:none;background:transparent;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;color:#374151}
+  .iconbtn:active{background:#ECEEF1}
+  h1{font-size:27px;line-height:1.2;font-weight:700;letter-spacing:-.5px;margin:14px 2px 18px}
+
+  /* ---------- 圆环概览 ---------- */
+  .hero{background:var(--card);border-radius:20px;box-shadow:var(--shadow);
+    padding:18px 18px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px}
+  .rings{width:132px;height:132px;flex:none}
+  .legend{flex:1;display:flex;flex-direction:column;gap:10px}
+  .leg{display:flex;align-items:center;gap:8px;font-size:14px;color:#4B5563}
+  .leg b{color:var(--ink);font-weight:650;font-variant-numeric:tabular-nums}
+  .leg .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .leg small{color:var(--sub);font-size:12.5px}
+
+  /* ---------- 卡片网格 ---------- */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .card{background:var(--card);border-radius:18px;box-shadow:var(--shadow);
+    padding:15px 14px 14px;cursor:pointer;transition:transform .12s}
+  .card:active{transform:scale(.985)}
+  .badge{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:12px}
+  .badge svg{width:21px;height:21px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .c-heart{background:#FF3B30}.c-bed{background:#8B7CF6}.c-drop{background:#FF6B6B}
+  .c-shoe{background:#34C759}.c-flame{background:#FF9500}.c-person{background:#30C3CF}
+  .c-clock{background:#0A84FF}.c-scale{background:#4CD964}
+  .card .t{font-size:17px;font-weight:650;letter-spacing:-.2px;line-height:1.3}
+  .card .t small{font-size:12.5px;font-weight:500;color:var(--sub);margin-left:2px}
+  .card .s{font-size:12.5px;color:var(--sub);margin-top:5px}
+
+  /* ---------- 弹层 ---------- */
+  .mask{position:fixed;inset:0;background:rgba(17,24,39,.35);opacity:0;pointer-events:none;transition:opacity .2s;z-index:40}
   .mask.on{opacity:1;pointer-events:auto}
-  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--card);
-    border-radius:22px 22px 0 0;padding:10px 18px calc(22px + env(safe-area-inset-bottom));
-    transform:translateY(102%);transition:transform .26s cubic-bezier(.2,.8,.2,1);
-    box-shadow:0 -8px 40px rgba(10,20,40,.18);max-height:82vh;overflow:auto}
+  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:50;background:#fff;border-radius:22px 22px 0 0;
+    padding:10px 20px calc(20px + env(safe-area-inset-bottom));transform:translateY(102%);
+    transition:transform .24s cubic-bezier(.2,.8,.2,1);max-height:80vh;overflow:auto}
   .sheet.on{transform:translateY(0)}
-  .sheet .grab{width:38px;height:4px;border-radius:4px;background:var(--line);margin:4px auto 12px}
-  .sheet h3{margin:0 0 2px;font-size:17px;letter-spacing:-.3px}
-  .sheet .when{font-size:12px;color:var(--muted);margin-bottom:14px}
-  .drow{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--line)}
-  .drow:last-child{border-bottom:none}
-  .drow .k{color:var(--muted);font-size:13.5px;display:flex;align-items:center;gap:8px}
-  .drow .v{font-size:16px;font-weight:640;font-variant-numeric:tabular-nums}
-  .drow .v small{font-size:11.5px;color:var(--muted);font-weight:500;margin-left:6px}
-  .sec{margin-top:6px}
-  .sec .sec-t{font-size:11.5px;font-weight:600;color:var(--muted);letter-spacing:.6px;
-    margin:14px 0 2px;display:flex;align-items:center;gap:8px}
-  .sec .sec-t::after{content:'';flex:1;height:1px;background:var(--line)}
-  .kdot{width:7px;height:7px;border-radius:50%;flex:none}
-  .empty-note{color:var(--muted);font-size:13px;text-align:center;padding:22px 0}
-  /* ---------- states ---------- */
-  .state{text-align:center;padding:40px 22px}
-  .state .emo{font-size:30px}
-  .state p{color:var(--muted);font-size:13.5px;margin:10px 0 0;line-height:1.7}
-  code{background:var(--chip);padding:1px 6px;border-radius:6px;font-size:12px}
-  footer{text-align:center;font-size:11px;color:var(--muted);opacity:.8;margin-top:18px;line-height:1.9}
-  .sk{height:13px;border-radius:7px;background:linear-gradient(90deg,var(--chip) 25%,var(--line) 37%,var(--chip) 63%);
-    background-size:400% 100%;animation:sk 1.3s ease infinite}
-  @keyframes sk{0%{background-position:100% 50%}100%{background-position:0 50%}}
+  .grab{width:38px;height:4px;border-radius:4px;background:#E5E7EB;margin:4px auto 14px}
+  .sheet h3{margin:0 0 4px;font-size:18px;font-weight:700}
+  .sheet .when{font-size:12.5px;color:var(--sub);margin-bottom:12px}
+  .row{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:none}
+  .row .k{color:#6B7280;font-size:14px}
+  .row .v{font-weight:650;font-variant-numeric:tabular-nums}
+  .wrow{display:flex;align-items:center;gap:10px;padding:9px 0}
+  .wrow .wi{width:34px;height:34px;border-radius:11px;background:#FFF4E5;display:flex;align-items:center;justify-content:center;flex:none}
+  .wrow .wi svg{width:18px;height:18px;stroke:#FF9500;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .wrow .wt{flex:1;min-width:0}
+  .wrow .wt b{display:block;font-size:14.5px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .wrow .wt span{font-size:12px;color:var(--sub)}
+  .empty{text-align:center;color:var(--sub);font-size:13.5px;padding:26px 0}
+  footer{text-align:center;font-size:11.5px;color:#B0B7C3;margin-top:18px;line-height:1.8}
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="app">
   <header>
-    <div>
-      <h1 id="greet">今天的状态</h1>
-      <div class="sub" id="todayLabel">加载中…</div>
-    </div>
-    <div class="live"><span class="dot" id="dot"></span><span id="updated">同步中</span></div>
+    <button class="iconbtn" id="back" aria-label="返回">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <button class="iconbtn" id="gear" aria-label="历史">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+        stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33
+        1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 008 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0
+        11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65
+        1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0
+        114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4
+        9v0a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+    </button>
   </header>
 
-  <div id="app">
-    <div class="card"><div class="sk" style="width:40%"></div>
-      <div class="sk" style="width:62%;height:30px;margin-top:12px"></div></div>
-    <div class="grid2">
-      <div class="card"><div class="sk" style="width:55%"></div><div class="sk" style="width:75%;height:26px;margin-top:12px"></div></div>
-      <div class="card"><div class="sk" style="width:55%"></div><div class="sk" style="width:75%;height:26px;margin-top:12px"></div></div>
-    </div>
-  </div>
+  <h1>憨憨的健康数据</h1>
 
-  <footer>
-    数据来自 Apple Watch，经 iPhone 自动上报<br>
-    点任意一天可以看当天明细
-  </footer>
+  <div id="hero"></div>
+  <div class="grid" id="grid"></div>
+
+  <footer>数据来自 Apple Watch / vivo 手表 → 苹果健康 → 自动同步<br>点任意卡片查看当天明细</footer>
 </div>
 
 <div class="mask" id="mask"></div>
@@ -193,483 +115,222 @@
 <script>
 const TOKEN = new URLSearchParams(location.search).get('token') || '';
 const $ = s => document.querySelector(s);
-const pad = n => String(n).padStart(2, '0');
-const WEEK = ['周日','周一','周二','周三','周四','周五','周六'];
-const YM = ['1 月','2 月','3 月','4 月','5 月','6 月','7 月','8 月','9 月','10 月','11 月','12 月'];
-const SLEEP_GOAL = 8, STEP_GOAL = 8000;
-
-const EXTRA_META = {
-  active_energy:{n:'活动能量',u:'千卡'}, basal_energy_burned:{n:'基础代谢',u:'千卡'},
-  walking_running_distance:{n:'步行距离',u:'公里'}, flights_climbed:{n:'爬楼层数',u:'层'},
-  walking_speed:{n:'步行速度',u:'km/h'}, walking_step_length:{n:'步长',u:'cm'},
-  walking_asymmetry_percentage:{n:'步行不对称',u:'%'}, walking_double_support_percentage:{n:'双脚支撑',u:'%'},
-  headphone_audio_exposure:{n:'耳机音量',u:'dB'}, heart_rate_variability:{n:'心率变异性',u:'ms'},
-  apple_sleeping_wrist_temperature:{n:'腕温',u:'°C'}, vo2_max:{n:'最大摄氧量',u:''},
-  oxygen_saturation:{n:'血氧',u:'%'}, spo2:{n:'血氧',u:'%'},
-  stress:{n:'压力',u:''}, stress_level:{n:'压力',u:''}, pressure:{n:'压力',u:''},
-  resting_hr:{n:'静息心率',u:'bpm'},
-};
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const GOALS = { energy: 300, steps: 6000, move: 30 };
+const dayMap = {};
 
 const ICONS = {
-  sleep: '<path d="M21 12.9A8.6 8.6 0 1111.1 3a6.7 6.7 0 009.9 9.9z"/>',
-  steps: '<ellipse cx="9" cy="8" rx="3" ry="4.2"/><ellipse cx="16" cy="16" rx="3" ry="4.2"/>',
   heart: '<path d="M12 20.3s-7-4.5-8.8-9A5.1 5.1 0 0112 7.7a5.1 5.1 0 018.8 3.6c-1.8 4.5-8.8 9-8.8 9z"/>',
-  energy: '<path d="M12 3.2s4.7 4.6 4.7 8.5a4.7 4.7 0 11-9.4 0c0-1.9 1-3.2 2-4.1 0 1.8.9 2.9 1.9 2.9 0-2.9.8-5.6.8-7.3z"/>',
-  dist: '<path d="M6 18h6a3 3 0 000-6H9a3 3 0 010-6h6"/><circle cx="18" cy="6" r="1.8"/><circle cx="6" cy="18" r="1.8"/>',
-  oxygen: '<path d="M12 3.2c3.2 4 5.2 6.6 5.2 9.1a5.2 5.2 0 11-10.4 0c0-2.5 2-5.1 5.2-9.1z"/>',
-  stress: '<path d="M3 14c2.2 0 2.6-6 4.8-6s2.6 8 4.8 8 2.6-4 4.4-4H21"/>',
-  stairs: '<path d="M4 20h4v-4h4v-4h4V8h4"/>'
+  bed: '<path d="M3 18v-5a2 2 0 012-2h14a2 2 0 012 2v5"/><path d="M3 18h18"/><path d="M7 11V8h5v3"/>',
+  drop: '<path d="M12 3.2c3.2 4 5.2 6.6 5.2 9.1a5.2 5.2 0 11-10.4 0c0-2.5 2-5.1 5.2-9.1z"/>',
+  shoe: '<ellipse cx="9" cy="8" rx="3" ry="4.2"/><ellipse cx="16" cy="16" rx="3" ry="4.2"/>',
+  flame: '<path d="M12 3.2s4.7 4.6 4.7 8.5a4.7 4.7 0 11-9.4 0c0-1.9 1-3.2 2-4.1 0 1.8.9 2.9 1.9 2.9 0-2.9.8-5.6.8-7.3z"/>',
+  person: '<circle cx="12" cy="6" r="2.4"/><path d="M12 9v5"/><path d="M7.5 12h9"/><path d="M12 14l-3 6"/><path d="M12 14l3 6"/>',
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  scale: '<rect x="4" y="5" width="16" height="14" rx="3"/><path d="M8 5V3.5h8V5"/><path d="M12 12l2-2"/>',
+  run: '<circle cx="14" cy="5" r="2"/><path d="M13 8l-3 4 3 2 1 5"/><path d="M10 12l-3 1-1 4"/>'
 };
-
 const svgIcon = k => `<svg viewBox="0 0 24 24">${ICONS[k] || ''}</svg>`;
-
-const iso = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-const parseISO = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
+const pad = n => String(n).padStart(2, '0');
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseISO = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
 const today = new Date();
 const TODAY = iso(today);
+const monthDay = s => { const d = parseISO(s); return `${d.getMonth() + 1}月${d.getDate()}日`; };
+const clock = s => { const m = String(s || '').match(/(\d{2}):(\d{2})/); return m ? `${m[1]}:${m[2]}` : ''; };
 
-const dayMap = {};      // 'YYYY-MM-DD' -> day object
-let calYear = today.getFullYear(), calMonth = today.getMonth();  // 0-based
-let loadedRanges = [];  // [{start,end}]
-let selectedDay = null;
-
-function fmtSleep(h){
-  if (h == null) return ['--',''];
-  const hh = Math.floor(h), mm = Math.round((h-hh)*60);
-  return [String(hh), `${mm} 分`];
-}
-const fmtN = n => n == null ? '--' : n.toLocaleString('zh-CN');
-const tone = v => v >= 80 ? '偏低' : v <= 75 ? '正常' : '偏高';
-const hrTone = v => v == null ? '--' : (v < 60 ? '偏低' : v <= 75 ? '正常范围' : '偏高，留意休息');
-
-/* ---------------- 数据 ---------------- */
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-/** 带「叫醒」重试的请求：免费实例休眠时前几次会 502，这里自动等它起来。 */
-async function fetchWarm(url, tries = 10){
-  for (let i = 0; i < tries; i++){
-    try{
+async function fetchWarm(url, tries = 8) {
+  for (let i = 0; i < tries; i++) {
+    try {
       const r = await fetch(url, { cache: 'no-store' });
       if (r.status === 502 || r.status === 503 || r.status === 504) throw new Error('WAKE');
       if (r.status === 401) throw new Error('AUTH');
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return await r.json();
-    }catch(e){
-      if (e.message === 'AUTH') throw e;
-      if (i === tries - 1) throw e;
-      $('#updated').textContent = `正在唤醒服务… ${i + 1}/${tries}`;
-      $('#dot').className = 'dot stale';
-      await sleep(5000);
+    } catch (e) {
+      if (e.message === 'AUTH' || i === tries - 1) throw e;
+      await sleep(4000);
     }
   }
 }
 
-async function fetchRange(start, end){
-  if (covered(start, end)) return null;
-  const data = await fetchWarm(`/api/days?start=${start}&end=${end}&token=${encodeURIComponent(TOKEN)}`);
-  (data.days || []).forEach(d => { dayMap[d.day] = d; });
-  loadedRanges.push({start, end});
-  return data;
-}
-function covered(start, end){
-  return loadedRanges.some(r => r.start <= start && r.end >= end);
-}
-
-/* ---------------- 今日 ---------------- */
-function latestWithData(){
-  const base = parseISO(TODAY);
-  for (let i = 1; i <= 34; i++){
-    const k = iso(new Date(base.getFullYear(), base.getMonth(), base.getDate() - i));
-    const r = dayMap[k];
-    if (r && r.has_data) return r;
+function latestDay() {
+  for (let i = 0; i < 60; i++) {
+    const k = iso(new Date(today.getFullYear(), today.getMonth(), today.getDate() - i));
+    if (dayMap[k] && dayMap[k].has_data) return dayMap[k];
   }
   return null;
 }
 
-function agoText(ts){
-  if (!ts) return '';
-  const dt = new Date(String(ts).replace(' ', 'T'));
-  if (isNaN(dt)) return ts.slice(5);
-  const min = Math.round((Date.now() - dt.getTime()) / 60000);
-  if (min < 1) return '刚刚';
-  if (min < 60) return min + ' 分钟前';
-  const h = Math.round(min / 60);
-  if (h < 24) return h + ' 小时前';
-  return Math.round(h / 24) + ' 天前';
+function ringSVG(t) {
+  const pct = v => Math.max(0, Math.min(1, v));
+  const e = pct((t.extras?.active_energy || 0) / GOALS.energy);
+  const s = pct((t.steps || 0) / GOALS.steps);
+  const m = pct((t.workout_minutes || 0) / GOALS.move);
+  const arc = (r, p, color) => {
+    const C = 2 * Math.PI * r;
+    return `<circle cx="66" cy="66" r="${r}" fill="none" stroke="#F0F1F3" stroke-width="9"/>
+            <circle cx="66" cy="66" r="${r}" fill="none" stroke="${color}" stroke-width="9"
+              stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - p)}"
+              transform="rotate(-90 66 66)"/>`;
+  };
+  return `<svg class="rings" viewBox="0 0 132 132">
+    ${arc(55, e, 'var(--ring-energy)')}
+    ${arc(42, s, 'var(--ring-steps)')}
+    ${arc(29, m, 'var(--ring-move)')}
+  </svg>`;
 }
 
-function renderToday(){
-  const todayRec = dayMap[TODAY];
-  // 今天还没同步时，退回「最近一个有数据的那天」，页面不会白屏
-  const t = (todayRec && todayRec.has_data) ? todayRec : latestWithData();
+function card(icon, cls, title, unit, sub, dayKey) {
+  return `<div class="card" data-day="${dayKey}">
+    <div class="badge ${cls}">${svgIcon(icon)}</div>
+    <div class="t">${title}${unit ? `<small>${unit}</small>` : ''}</div>
+    <div class="s">${sub}</div>
+  </div>`;
+}
 
-  if (!t){
-    $('#todayLabel').textContent = '暂无数据';
-    $('#updated').textContent = '等待上报';
-    $('#dot').className = 'dot stale';
-    $('#app').innerHTML = `<div class="card state"><div class="emo">🌙</div>
-      <p>还没有收到任何数据。<br>在 iPhone 的 App 里点一次「手动上传」试试。</p></div>`;
+function render() {
+  const t = dayMap[TODAY]?.has_data ? dayMap[TODAY] : latestDay();
+  if (!t) {
+    $('#hero').innerHTML = `<div class="hero"><div class="empty">还没有数据，等手机同步一次</div></div>`;
+    $('#grid').innerHTML = '';
     return;
   }
-
-  const isToday = t.day === TODAY;
-  const d = parseISO(t.day);
-  const up = t.updated_at || '';
-  $('#todayLabel').textContent = `${d.getMonth()+1} 月 ${d.getDate()} 日 · ${WEEK[d.getDay()]}` +
-    (isToday ? '' : '（今天还没同步）');
-  $('#updated').textContent = up ? agoText(up) + '同步' : '暂无数据';
-  $('#dot').className = 'dot' + (up ? '' : ' stale');
-
-  const [sh, sm] = fmtSleep(t.sleep_hours);
-  const sleepPct = t.sleep_hours ? Math.min(t.sleep_hours / SLEEP_GOAL * 100, 100) : 0;
-  const stepPct = t.steps ? Math.min(t.steps / STEP_GOAL * 100, 100) : 0;
-
-  const y = dayMap[iso(new Date(d.getFullYear(), d.getMonth(), d.getDate()-1))];
-  const diff = (t.sleep_hours != null && y && y.sleep_hours != null) ? t.sleep_hours - y.sleep_hours : null;
-  const diffTxt = diff == null ? '昨夜睡眠' :
-    (Math.abs(diff) < 0.05 ? '和前晚差不多' :
-     (diff > 0 ? `比前晚多睡 ${Math.round(diff*60)} 分钟` : `比前晚少睡 ${Math.round(-diff*60)} 分钟`));
-
-  const dayKey = t.day;
-  const C = 2 * Math.PI * 32;
   const ex = t.extras || {};
-  const n1 = v => (v == null ? '--' : (v >= 100 ? Math.round(v).toLocaleString('zh-CN') : Math.round(v * 10) / 10));
-  const pick = (keys) => { for (const k of keys) if (ex[k] != null) return ex[k]; return null; };
+  const energy = Math.round(ex.active_energy || 0);
+  const minutes = Math.round(t.workout_minutes || 0);
+  const dayKey = t.day;
+  const isToday = t.day === TODAY;
+  const subDate = isToday ? '今天' : monthDay(t.day);
 
-  // 更多指标卡：只渲染当天有数据的
-  const MORE = [
-    { keys: ['oxygen_saturation', 'spo2', 'blood_oxygen'], nm: '血氧', unit: '%', icon: 'oxygen',
-      fmt: v => (v <= 1.5 ? Math.round(v * 100) : Math.round(v)), sub: v => (v >= 95 || v > 1.5 ? '正常范围' : '偏低') },
-    { keys: ['stress', 'stress_level', 'pressure', 'stress_avg'], nm: '压力', unit: '', icon: 'stress',
-      fmt: v => Math.round(v), sub: () => '越低越放松' },
-    { keys: ['active_energy'], nm: '活动能量', unit: '千卡', icon: 'energy',
-      fmt: v => Math.round(v), sub: () => (ex.basal_energy_burned != null ? `基础代谢 ${Math.round(ex.basal_energy_burned)} 千卡` : '') },
-    { keys: ['walking_running_distance'], nm: '步行距离', unit: '公里', icon: 'dist',
-      fmt: v => (Math.round(v * 10) / 10), sub: () => (ex.flights_climbed != null ? `爬楼 ${Math.round(ex.flights_climbed)} 层` : '当天累计') },
-    { keys: ['heart_rate_variability'], nm: '心率变异性', unit: 'ms', icon: 'heart', fmt: v => Math.round(v), sub: () => '' },
-  ];
+  const sleepH = t.sleep_hours;
+  const sleepTxt = sleepH == null ? '睡眠' : `睡眠${Math.floor(sleepH)}小时${Math.round((sleepH % 1) * 60)}分`;
+  const spo2 = ex.oxygen_saturation != null ? (ex.oxygen_saturation <= 1.5 ? Math.round(ex.oxygen_saturation * 100) : Math.round(ex.oxygen_saturation)) : null;
+  const weight = ex.weight ?? ex.body_mass ?? null;
+  const flights = ex.flights_climbed != null ? Math.round(ex.flights_climbed) : null;
 
-  const moreCards = MORE.map(m => {
-    const v = pick(m.keys);
-    if (v == null) return '';
-    const sub = m.sub ? m.sub(v) : '';
-    return `<div class="mcard" data-day="${dayKey}">
-      <div class="top"><span class="badge ${m.icon === 'stairs' ? 'dist' : m.icon}">${svgIcon(m.icon)}</span><span class="nm">${m.nm}</span></div>
-      <div class="val">${m.fmt(v)}${m.unit ? `<small>${m.unit}</small>` : ''}</div>
-      ${sub ? `<div class="sub">${sub}</div>` : ''}
-    </div>`;
-  }).filter(Boolean);
-
-  const moreGrid = moreCards.length
-    ? `<div class="grid2">${moreCards.map((c, i) => (i === moreCards.length - 1 && moreCards.length % 2 === 1) ? c.replace('class="mcard"', 'class="mcard wide"') : c).join('')}</div>`
-    : '';
-
-  $('#app').innerHTML = `
-    ${isToday ? '' : `<div class="card notice" data-day="${dayKey}">
-      <b>今天还没有新数据</b>，下面显示的是 ${d.getMonth()+1} 月 ${d.getDate()} 日的数据。
-      等下一次自动同步（或点 App 里的「手动上传」）就会更新。
-    </div>`}
-
-    <div class="mcard hero" data-day="${dayKey}">
-      <div class="top">
-        <span class="badge sleep">${svgIcon('sleep')}</span>
-        <span class="nm">${isToday ? '昨晚睡眠' : `${d.getMonth()+1} 月 ${d.getDate()} 日睡眠`}</span>
-        <span class="tag" style="margin-left:auto">目标 ${SLEEP_GOAL} 小时</span>
-      </div>
-      <div class="row">
-        <div>
-          <div class="val" style="font-size:32px">${sh}<small>小时</small>${sm ? `<small style="margin-left:6px">${sm}</small>` : ''}</div>
-          <div class="sub">${diffTxt}${t.sleep_window ? ' · ' + clockOf(t.sleep_window[0]) + '–' + clockOf(t.sleep_window[1]) : ''}</div>
-        </div>
-        <div class="ring">
-          <svg width="72" height="72" viewBox="0 0 76 76">
-            <circle cx="38" cy="38" r="32" fill="none" stroke="var(--line)" stroke-width="7"/>
-            <circle cx="38" cy="38" r="32" fill="none" stroke="url(#sg)" stroke-width="7"
-              stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-sleepPct/100)}"/>
-            <defs><linearGradient id="sg" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="#9aa6ff"/><stop offset="100%" stop-color="#6c7cf0"/>
-            </linearGradient></defs>
-          </svg>
-          <b>${Math.round(sleepPct)}%</b>
-        </div>
-      </div>
+  $('#hero').innerHTML = `<div class="hero">
+    ${ringSVG(t)}
+    <div class="legend">
+      <div class="leg"><span class="dot" style="background:#FF9500"></span>
+        <b>${energy}</b><span>/ ${GOALS.energy}千卡</span></div>
+      <div class="leg"><span class="dot" style="background:#34C759"></span>
+        <b>${t.steps ?? 0}</b><span>/ ${GOALS.steps}步</span></div>
+      <div class="leg"><span class="dot" style="background:#007AFF"></span>
+        <b>${minutes}</b><span>/ ${GOALS.move}分</span></div>
     </div>
+  </div>`;
 
-    <div class="grid2">
-      <div class="mcard" data-day="${dayKey}">
-        <div class="top"><span class="badge steps">${svgIcon('steps')}</span><span class="nm">步数</span></div>
-        <div class="val">${fmtN(t.steps)}<small>步</small></div>
-        <div class="bar"><i style="width:${stepPct}%;background:linear-gradient(90deg,var(--steps2),var(--steps))"></i></div>
-        <div class="sub">目标 ${fmtN(STEP_GOAL)} · ${Math.round(stepPct)}%</div>
-      </div>
-      <div class="mcard" data-day="${dayKey}">
-        <div class="top"><span class="badge heart">${svgIcon('heart')}</span><span class="nm">心率</span></div>
-        <div class="val">${t.hr_avg ?? '--'}<small>平均 bpm</small></div>
-        <div class="sub">今日区间 ${t.hr_min ?? '--'} – ${t.hr_max ?? '--'} bpm</div>
-      </div>
-    </div>
-
-    ${moreGrid}
-
-    ${trendCard()}
-    ${calendarCard()}
-  `;
-  bind();
+  $('#grid').innerHTML = [
+    card('heart', 'c-heart', t.hr_avg != null ? `心率${t.hr_avg}` : '心率', '次/分', t.hr_avg != null ? subDate : '暂无数据', dayKey),
+    card('bed', 'c-bed', sleepTxt, '', sleepH != null ? subDate : '暂无数据', dayKey),
+    card('drop', 'c-drop', spo2 != null ? `血氧${spo2}` : '血氧', spo2 != null ? '%' : '', spo2 != null ? subDate : '暂无数据', dayKey),
+    card('shoe', 'c-shoe', t.steps != null ? `步数${t.steps}` : '步数', t.steps != null ? '步' : '', t.steps != null ? subDate : '暂无数据', dayKey),
+    card('flame', 'c-flame', minutes ? `运动${minutes}` : '运动', minutes ? '分钟' : '',
+      minutes ? `${(t.workouts || []).length} 次训练` : '暂无数据', dayKey),
+    card('person', 'c-person', energy ? `活动${energy}` : '活动能量', energy ? '千卡' : '',
+      energy ? subDate : '暂无数据', dayKey),
+    card('clock', 'c-clock', flights != null ? `爬楼${flights}` : '爬楼层数', flights != null ? '层' : '',
+      flights != null ? subDate : '暂无数据', dayKey),
+    card('scale', 'c-scale', weight != null ? `体重${weight}` : '体重', weight != null ? 'kg' : '',
+      weight != null ? subDate : '暂无数据', dayKey),
+  ].join('');
 }
 
-/* ---------------- 7 天趋势 ---------------- */
-function trendCard(){
-  const arr = [];
-  for (let i = 6; i >= 0; i--){
-    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate()-i);
-    arr.push(dayMap[iso(d)] || {day: iso(d)});
-  }
-  const maxS = Math.max(...arr.map(d => d.steps || 0), 1);
-  const maxZ = Math.max(...arr.map(d => d.sleep_hours || 0), 1);
-  const withS = arr.filter(d => d.steps);
-  const withZ = arr.filter(d => d.sleep_hours);
-  const avgS = withS.length ? Math.round(withS.reduce((a,b)=>a+b.steps,0)/withS.length) : null;
-  const avgZ = withZ.length ? withZ.reduce((a,b)=>a+b.sleep_hours,0)/withZ.length : null;
-
-  const bars = (key, max, cls) => `
-    <div class="bars">${arr.map(d => {
-      const v = d[key] || 0;
-      // 睡眠用 4h~9h 的区间映射，否则各天都是"满格"看不出差异
-      const h = v ? (key === 'sleep_hours'
-        ? Math.min(100, Math.max((v - 4) / 5 * 100, 10))
-        : Math.max(v / max * 100, 6)) : 3;
-      const label = key === 'steps' ? (v ? Math.round(v/1000*10)/10 + 'k' : '') : (v ? v.toFixed(1) : '');
-      return `<div class="bcol ${cls} ${v ? '' : 'empty'}" data-day="${d.day}">
-        <span class="v">${label}</span>
-        <div class="b" style="height:${h}%"></div></div>`;
-    }).join('')}</div>
-    <div class="axis">${arr.map(d => `<span>${WEEK[parseISO(d.day).getDay()].slice(1)}</span>`).join('')}</div>`;
-
-  return `
-    <div class="card">
-      <h2><span>最近 7 天</span><span class="tag">点柱子看当天明细</span></h2>
-      <div style="font-size:11.5px;color:var(--muted);margin:2px 0 2px">步数</div>
-      ${bars('steps', maxS, '')}
-      <div style="font-size:11.5px;color:var(--muted);margin:14px 0 2px">睡眠（小时）</div>
-      ${bars('sleep_hours', maxZ, 'sleep')}
-      <div class="avgrow">
-        <div class="avg"><em>7 天平均步数</em><b>${fmtN(avgS)} <span style="font-size:11px;color:var(--muted)">步</span></b></div>
-        <div class="avg"><em>7 天平均睡眠</em><b>${avgZ == null ? '--' : avgZ.toFixed(1)} <span style="font-size:11px;color:var(--muted)">小时</span></b></div>
-      </div>
-    </div>`;
-}
-
-/* ---------------- 月历 ---------------- */
-function calendarCard(){
-  const first = new Date(calYear, calMonth, 1);
-  const days = new Date(calYear, calMonth+1, 0).getDate();
-  const lead = first.getDay();
-  const cells = [];
-  for (let i = 0; i < lead; i++) cells.push('');
-  for (let d = 1; d <= days; d++) cells.push(d);
-
-  const monthDays = cells.filter(Boolean).map(d => dayMap[`${calYear}-${pad(calMonth+1)}-${pad(d)}`]).filter(Boolean);
-  const withS = monthDays.filter(d => d.steps);
-  const withZ = monthDays.filter(d => d.sleep_hours);
-  const avgS = withS.length ? Math.round(withS.reduce((a,b)=>a+b.steps,0)/withS.length) : null;
-  const avgZ = withZ.length ? withZ.reduce((a,b)=>a+b.sleep_hours,0)/withZ.length : null;
-  const maxS = Math.max(...withS.map(d=>d.steps), 1);
-  const goalDays = withS.filter(d => d.steps >= STEP_GOAL).length;
-
-  const body = cells.map(n => {
-    if (!n) return '<div></div>';
-    const key = `${calYear}-${pad(calMonth+1)}-${pad(n)}`;
-    const rec = dayMap[key];
-    const isFuture = key > TODAY;
-    const pct = rec && rec.steps ? Math.max(8, Math.min(100, rec.steps / maxS * 100)) : 0;
-    return `<button class="cell ${rec && rec.has_data ? '' : 'dim'} ${isFuture ? 'future' : ''} ${key === TODAY ? 'today' : ''} ${key === selectedDay ? 'sel' : ''}"
-        data-day="${key}">
-      <span class="d">${n}</span>
-      <span class="s">${rec && rec.steps ? Math.round(rec.steps/1000*10)/10 + 'k' : ''}</span>
-      ${pct ? `<span class="fill" style="height:${pct}%"></span>` : ''}
-      ${rec && rec.sleep_hours ? '<span class="moon"></span>' : ''}
-    </button>`;
-  }).join('');
-
-  return `
-    <div class="card">
-      <div class="calhead">
-        <button class="calnav" data-nav="-1" style="border:none;background:var(--chip);width:30px;height:30px;border-radius:10px;color:var(--ink);cursor:pointer">‹</button>
-        <div class="m">${calYear} 年 ${YM[calMonth]}</div>
-        <button class="calnav" data-nav="1" style="border:none;background:var(--chip);width:30px;height:30px;border-radius:10px;color:var(--ink);cursor:pointer">›</button>
-      </div>
-      <div class="wd">${['日','一','二','三','四','五','六'].map(w=>`<span>${w}</span>`).join('')}</div>
-      <div class="cal">${body}</div>
-      <div class="mstats">
-        <div class="mstat"><em>日均步数</em><b>${fmtN(avgS)}</b></div>
-        <div class="mstat"><em>日均睡眠</em><b>${avgZ == null ? '--' : avgZ.toFixed(1)}<span style="font-size:10px">h</span></b></div>
-        <div class="mstat"><em>达标天数</em><b>${goalDays}</b></div>
-      </div>
-      <div class="hint" style="margin-top:10px">左边橙条是当天步数占比，右上蓝点是当天有睡眠记录</div>
-    </div>`;
-}
-
-/* ---------------- 详情弹层 ---------------- */
-const STAGE = {
-  deep:  ['深睡', '#4550b8'],
-  core:  ['核心', '#6c7cf0'],
-  rem:   ['快速眼动', '#9aa6ff'],
-  awake: ['清醒', '#e8a24a'],
-  inBed: ['卧床', '#b9c2d4'],
-};
-const hmText = h => { const hh = Math.floor(h), mm = Math.round((h - hh) * 60); return `${hh} 小时 ${mm} 分`; };
-const clockOf = s => {
-  const m = String(s || '').match(/(\d{2}):(\d{2})/);
-  return m ? `${m[1]}:${m[2]}` : null;
-};
-
-function openSheet(key){
+/* ---------- 详情弹层 ---------- */
+function openSheet(key) {
   const rec = dayMap[key] || {};
   const d = parseISO(key);
-  selectedDay = key;
-
-  const row = (k, v, unit, color) => `<div class="drow">
-    <span class="k">${color ? `<i class="kdot" style="background:${color}"></i>` : ''}${k}</span>
-    <span class="v">${v}${unit ? `<small>${unit}</small>` : ''}</span></div>`;
-  const sec = (title, rows) => rows.length
-    ? `<div class="sec"><div class="sec-t">${title}</div>${rows.join('')}</div>` : '';
-
-  /* 睡眠 */
-  const sleepRows = [];
-  if (rec.sleep_hours != null) sleepRows.push(row('总睡眠时长', hmText(rec.sleep_hours), '', 'var(--sleep)'));
-  const st = rec.sleep_stages || {};
-  const stSum = Object.values(st).filter(v => typeof v === 'number').reduce((a, b) => a + b, 0);
-  if (stSum > 0){
-    ['deep', 'core', 'rem', 'awake'].forEach(k => {
-      const v = st[k];
-      if (typeof v !== 'number' || v <= 0) return;
-      sleepRows.push(row(STAGE[k][0], hmText(v), `占 ${Math.round(v / stSum * 100)}%`, STAGE[k][1]));
-    });
+  const rows = [];
+  const row = (k, v) => `<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
+  if (rec.sleep_hours != null) {
+    const w = rec.sleep_window;
+    rows.push(row('睡眠', `${Math.floor(rec.sleep_hours)}小时${Math.round((rec.sleep_hours % 1) * 60)}分` +
+      (w ? ` · ${clock(w[0])}–${clock(w[1])}` : '')));
   }
-  const w = rec.sleep_window;
-  if (Array.isArray(w) && w.length === 2){
-    const a = clockOf(w[0]), b = clockOf(w[1]);
-    if (a && b) sleepRows.push(row('入睡 – 起床', `${a} – ${b}`, ''));
+  if (rec.hr_avg != null) rows.push(row('心率', `${rec.hr_avg} 次/分（${rec.hr_min}–${rec.hr_max}）`));
+  if (rec.steps != null) rows.push(row('步数', `${rec.steps} 步`));
+  if (rec.workout_minutes) rows.push(row('运动', `${Math.round(rec.workout_minutes)} 分钟`));
+  const ex = rec.extras || {};
+  if (ex.active_energy != null) rows.push(row('活动能量', `${Math.round(ex.active_energy)} 千卡`));
+  if (ex.basal_energy_burned != null) rows.push(row('基础代谢', `${Math.round(ex.basal_energy_burned)} 千卡`));
+  if (ex.walking_running_distance != null) rows.push(row('步行距离', `${Math.round(ex.walking_running_distance * 10) / 10} 公里`));
+  if (ex.oxygen_saturation != null) {
+    const v = ex.oxygen_saturation <= 1.5 ? Math.round(ex.oxygen_saturation * 100) : Math.round(ex.oxygen_saturation);
+    rows.push(row('血氧', `${v}%`));
   }
+  if (ex.flights_climbed != null) rows.push(row('爬楼', `${Math.round(ex.flights_climbed)} 层`));
 
-  /* 心率 */
-  const hrRows = [];
-  if (rec.hr_avg != null) hrRows.push(row('平均心率', rec.hr_avg, 'bpm', 'var(--hr)'));
-  if (rec.hr_min != null && rec.hr_max != null)
-    hrRows.push(row('区间', `${rec.hr_min} – ${rec.hr_max}`, 'bpm', ''));
-
-
-  /* 活动 */
-  const actRows = [];
-  if (rec.steps != null) actRows.push(row('步数', fmtN(rec.steps), '步', 'var(--steps)'));
-  const ACTIVITY = ['active_energy', 'walking_running_distance', 'flights_climbed'];
-  const others = [];
-  Object.entries(rec.extras || {}).forEach(([k, v]) => {
-    const m = EXTRA_META[k] || { n: k, u: '' };
-    const num = v >= 100 ? Math.round(v) : Math.round(v * 10) / 10;
-    const r = row(m.n, fmtN(num), m.u, '');
-    (ACTIVITY.includes(k) ? actRows : others).push(r);
-  });
-
-  const body = sec('睡眠', sleepRows) + sec('心率', hrRows) +
-               sec('活动', actRows) + sec('其他', others);
-  const empty = !sleepRows.length && !hrRows.length && !actRows.length && !others.length;
+  const workouts = (rec.workouts || []).map(w => `
+    <div class="wrow">
+      <div class="wi">${svgIcon('run')}</div>
+      <div class="wt"><b>${w.name}</b>
+        <span>${clock(w.start)}–${clock(w.end)} · ${Math.round(w.minutes)} 分钟${w.energy ? ` · ${Math.round(w.energy)} 千卡` : ''}</span>
+      </div>
+    </div>`).join('');
 
   $('#sheetBody').innerHTML = `
-    <h3>${d.getMonth() + 1} 月 ${d.getDate()} 日 · ${WEEK[d.getDay()]}</h3>
-    <div class="when">${rec.updated_at ? '数据更新于 ' + rec.updated_at : '这一天没有数据'}</div>
-    ${empty ? '<div class="empty-note">这一天还没有收到数据</div>' : body}`;
+    <h3>${d.getMonth() + 1} 月 ${d.getDate()} 日</h3>
+    <div class="when">${rec.updated_at ? '更新于 ' + rec.updated_at : '暂无数据'}</div>
+    ${workoutsBlock(workouts)}
+    ${rows.length ? rows.join('') : '<div class="empty">这一天还没有数据</div>'}`;
   $('#sheet').classList.add('on');
   $('#mask').classList.add('on');
 }
-function closeSheet(){
+const workoutsBlock = html => html ? `<div style="margin:6px 0 10px">${html}</div>` : '';
+
+function closeSheet() {
   $('#sheet').classList.remove('on');
   $('#mask').classList.remove('on');
-  selectedDay = null;
 }
 
-/* ---------------- 交互 ---------------- */
-function bind(){
-  document.querySelectorAll('[data-day]').forEach(el => {
-    el.addEventListener('click', () => openSheet(el.dataset.day));
-  });
-  document.querySelectorAll('.calnav').forEach(el => {
-    el.addEventListener('click', async e => {
-      e.stopPropagation();
-      calMonth += Number(el.dataset.nav);
-      if (calMonth < 0){ calMonth = 11; calYear--; }
-      if (calMonth > 11){ calMonth = 0; calYear++; }
-      await ensureMonth();
-      renderToday();
-    });
-  });
-}
+document.addEventListener('click', e => {
+  const c = e.target.closest('[data-day]');
+  if (c) openSheet(c.dataset.day);
+});
 $('#mask').addEventListener('click', closeSheet);
+$('#back').addEventListener('click', () => history.length > 1 ? history.back() : null);
+$('#gear').addEventListener('click', () => {
+  const keys = Object.keys(dayMap).filter(k => dayMap[k].has_data).sort().reverse().slice(0, 7);
+  $('#sheetBody').innerHTML = `<h3>最近 7 天</h3><div class="when">点某一天看明细</div>` +
+    keys.map(k => `<div class="row" data-day="${k}" style="cursor:pointer">
+        <span class="k">${monthDay(k)}</span>
+        <span class="v">${dayMap[k].steps ?? '--'} 步 · ${dayMap[k].sleep_hours ? dayMap[k].sleep_hours.toFixed(1) + ' h' : '--'}</span>
+      </div>`).join('');
+  $('#sheet').classList.add('on');
+  $('#mask').classList.add('on');
+});
 
-async function ensureMonth(){
-  const start = `${calYear}-${pad(calMonth+1)}-01`;
-  const last = new Date(calYear, calMonth+1, 0).getDate();
-  const end = `${calYear}-${pad(calMonth+1)}-${pad(last)}`;
-  if (covered(start, end) || end > TODAY && start <= TODAY) {
-    const s2 = start > TODAY ? null : start;
-    if (!s2) return;
-  }
-  const from = start, to = end > TODAY ? TODAY : end;
-  if (from > to) return;
-  if (covered(from, to)) return;
-  await fetchRange(from, to);
-}
-
-/* ---------------- 启动 ---------------- */
-async function init(){
-  if (!TOKEN){
-    $('#app').innerHTML = `<div class="card state"><div class="emo">🔒</div>
-      <p>链接缺少访问口令。<br>请用带 <code>?token=</code> 的完整链接打开。</p></div>`;
-    $('#updated').textContent = '缺少口令';
-    return;
-  }
-  try{
-    const s = iso(new Date(today.getFullYear(), today.getMonth(), today.getDate()-34));
-    await fetchRange(s, TODAY);
-    await ensureMonth();
-    renderToday();
-    // 支持 #d=2026-11-20 直接打开某一天的详情（方便分享/收藏）
-    const m = location.hash.match(/^#d=(\d{4}-\d{2}-\d{2})$/);
-    if (m) openSheet(m[1]);
-  }catch(e){
-    const auth = e.message === 'AUTH';
-    $('#app').innerHTML = `<div class="card state"><div class="emo">${auth?'🔒':'📡'}</div>
-      <p>${auth ? '口令不对，请用完整的带 token 链接打开。'
-               : '读取失败：' + e.message + '<br><span style="font-size:12px">免费实例冷启动可能要等 30–60 秒，稍后刷新。</span>'}</p></div>`;
-    $('#updated').textContent = auth ? '口令错误' : '连接异常';
-  }
-}
-
-/* ---------------- PWA ---------------- */
-(function setupPWA(){
+/* ---------- PWA ---------- */
+(function setupPWA() {
   const link = document.createElement('link');
   link.rel = 'manifest';
   link.href = '/manifest.webmanifest?token=' + encodeURIComponent(TOKEN || '');
   document.head.appendChild(link);
-  if ('serviceWorker' in navigator){
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
-    });
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
   }
 })();
 
-init();
+/* ---------- 启动 ---------- */
+(async function init() {
+  if (!TOKEN) {
+    $('#hero').innerHTML = `<div class="hero"><div class="empty">链接缺少口令。<br>请用带 ?token= 的完整链接打开</div></div>`;
+    return;
+  }
+  try {
+    const start = iso(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 34));
+    const data = await fetchWarm(`/api/days?start=${start}&end=${TODAY}&token=${encodeURIComponent(TOKEN)}`);
+    (data.days || []).forEach(d => { dayMap[d.day] = d; });
+    render();
+  } catch (e) {
+    $('#hero').innerHTML = `<div class="hero"><div class="empty">${
+      e.message === 'AUTH' ? '口令不对，请用完整链接打开' : '正在唤醒服务，稍后自动重试…'}</div></div>`;
+    setTimeout(() => location.reload(), 8000);
+  }
+})();
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
 
 
