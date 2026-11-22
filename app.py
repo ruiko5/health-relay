@@ -95,6 +95,38 @@ def _is_raw(metric: str, row: dict) -> bool:
     return " 00:00:00" not in str(row.get("ts") or "")
 
 
+def _dedupe_sleep(rows):
+    """同一天「同一段睡眠」可能被两个自动化各推一次（汇总行 + 会话行），只保留一条。
+
+    判重依据是 extra.window（入睡–起床时间）；优先保留带阶段信息的那条。
+    """
+    out, seen = [], {}
+    for r in rows:
+        if r["metric"] != "sleep":
+            out.append(r)
+            continue
+        try:
+            ex = json.loads(r.get("extra") or "{}")
+        except (TypeError, ValueError):
+            ex = {}
+        w = ex.get("window")
+        if not (isinstance(w, list) and len(w) == 2):
+            out.append(r)
+            continue
+        key = (r.get("day"), str(w[0]), str(w[1]))
+        prev = seen.get(key)
+        if prev is None:
+            seen[key] = r
+            out.append(r)
+            continue
+        prev_has = '"stages"' in str(prev.get("extra") or "")
+        cur_has = '"stages"' in str(r.get("extra") or "")
+        if cur_has and not prev_has:
+            out[out.index(prev)] = r
+            seen[key] = r
+    return out
+
+
 def _aggregate(rows):
     """按 (day, metric) 聚合。
 
@@ -102,6 +134,7 @@ def _aggregate(rows):
     直接 SUM 会翻倍，所以**当天只要有原始样本就只用原始样本**，
     没有原始样本（老数据 / 只跑「过去 7 天」那个自动化）才用汇总行。
     """
+    rows = _dedupe_sleep(rows)
     days, hr_range, recv = {}, {}, {}
     raw_sum, raw_n = {}, {}
     all_sum, all_n = {}, {}
@@ -432,7 +465,7 @@ def days_api(request: Request, start: str = "", end: str = ""):
         start_d, end_d = end_d, start_d
     start_d = max(start_d, end_d - datetime.timedelta(days=399))  # 最多 400 天
 
-    rows = STORE.range_rows(start_d.isoformat(), end_d.isoformat())
+    rows = _dedupe_sleep(STORE.range_rows(start_d.isoformat(), end_d.isoformat()))
     agg, recv = _aggregate(rows)
 
     # 睡眠阶段（深睡/核心/REM/清醒）与入睡-起床窗口
@@ -532,7 +565,7 @@ def demo(request: Request):
 @app.get("/healthz")
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-22T1505"}
+    return {"ok": True, "rev": "2026-11-22T1750"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -599,6 +632,9 @@ def apple_icon():
 @app.get("/")
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
+
+
 
 
 
