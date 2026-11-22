@@ -291,18 +291,44 @@ def parse(payload):
         name = w.get("name") or w.get("type") or "运动"
         start = w.get("start") or w.get("startDate")
         end = w.get("end") or w.get("endDate")
-        minutes = _num(w.get("duration"))
-        if minutes is None and start and end:
-            minutes = round((_hours(start, end) or 0) * 60, 1)
+        # 时长优先用起止时间算（最可靠）；HAE 的 duration 单位是「秒」
+        minutes = None
+        if start and end:
+            h = _hours(start, end)
+            if h:
+                minutes = round(h * 60, 1)
+        if minutes is None:
+            dur = _num(w.get("duration"))
+            if dur is not None:
+                minutes = round(dur / 60, 1) if dur > 600 else round(dur, 1)
         if not minutes:
             continue
+
+        def _qty(v):
+            if isinstance(v, dict):
+                return v.get("qty")
+            return v
+
         extra = {"name": str(name)}
         for src, dst in (("start", "start"), ("startDate", "start"),
-                         ("end", "end"), ("endDate", "end"),
-                         ("activeEnergyBurned", "energy"), ("activeEnergy", "energy"),
-                         ("distance", "distance")):
+                         ("end", "end"), ("endDate", "end")):
             if w.get(src) is not None and dst not in extra:
                 extra[dst] = w.get(src)
+        # 能量：可能是 {"qty":1928,"units":"kJ"} 这种对象，顺带把 kJ 换成千卡
+        energy = _qty(w.get("activeEnergyBurned", w.get("activeEnergy")))
+        if isinstance(energy, (int, float)):
+            units = ""
+            src_obj = w.get("activeEnergyBurned") or w.get("activeEnergy")
+            if isinstance(src_obj, dict):
+                units = str(src_obj.get("units") or "").lower()
+            extra["energy"] = round(energy / 4.184, 1) if units in ("kj", "千焦") else round(energy, 1)
+        dist = _qty(w.get("distance"))
+        if isinstance(dist, (int, float)):
+            units = ""
+            src_obj = w.get("distance")
+            if isinstance(src_obj, dict):
+                units = str(src_obj.get("units") or "").lower()
+            extra["distance"] = round(dist * 1.60934, 2) if units in ("mi", "英里") else round(dist, 2)
         add("workout", end or start, minutes, extra)
 
     for m in metrics:
@@ -734,7 +760,7 @@ def demo(request: Request):
 @app.api_route("/healthz", methods=["GET", "HEAD"])
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-23T0215"}
+    return {"ok": True, "rev": "2026-11-23T0225"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -801,6 +827,7 @@ def apple_icon():
 @app.api_route("/", methods=["GET", "HEAD"])
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
 
 
 
