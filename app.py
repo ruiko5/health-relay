@@ -760,7 +760,7 @@ def demo(request: Request):
 @app.api_route("/healthz", methods=["GET", "HEAD"])
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-23T0225"}
+    return {"ok": True, "rev": "2026-11-23T0235"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -827,6 +827,7 @@ def apple_icon():
 @app.api_route("/", methods=["GET", "HEAD"])
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
 
 
 
