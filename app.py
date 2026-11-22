@@ -204,9 +204,10 @@ def _aggregate(rows):
 
 def _day_out(day: str, m: dict, recv: dict):
     sleep, hr, rhr, steps = m.get("sleep"), m.get("heart_rate"), m.get("resting_hr"), m.get("steps")
+    workout = m.get("workout")
     extras = {}
     for k, v in m.items():
-        if k in ("steps", "sleep", "heart_rate", "resting_hr"):
+        if k in ("steps", "sleep", "heart_rate", "resting_hr", "workout"):
             continue
         extras[k] = round(v["sum"], 1)
     return {
@@ -216,6 +217,8 @@ def _day_out(day: str, m: dict, recv: dict):
         "sleep_hours": round(sleep["sum"], 2) if sleep else None,
         "sleep_stages": {},
         "sleep_window": None,
+        "workout_minutes": round(workout["sum"], 1) if workout else None,
+        "workouts": [],
         "hr_avg": round(hr["sum"] / hr["n"]) if hr and hr.get("n") else None,
         "hr_min": round(hr["min"]) if hr and hr.get("min") is not None else None,
         "hr_max": round(hr["max"]) if hr and hr.get("max") is not None else None,
@@ -272,8 +275,35 @@ def parse(payload):
     if isinstance(payload, dict):
         if isinstance(payload.get("data"), dict):
             metrics = payload["data"].get("metrics") or []
+            workouts = payload["data"].get("workouts") or []
         elif isinstance(payload.get("metrics"), list):
             metrics = payload["metrics"]
+            workouts = payload.get("workouts") or []
+        else:
+            workouts = []
+    else:
+        workouts = []
+
+    # 运动（HAE 的「锻炼」数据类型）：一条 = 一次训练
+    for w in workouts:
+        if not isinstance(w, dict):
+            continue
+        name = w.get("name") or w.get("type") or "运动"
+        start = w.get("start") or w.get("startDate")
+        end = w.get("end") or w.get("endDate")
+        minutes = _num(w.get("duration"))
+        if minutes is None and start and end:
+            minutes = round((_hours(start, end) or 0) * 60, 1)
+        if not minutes:
+            continue
+        extra = {"name": str(name)}
+        for src, dst in (("start", "start"), ("startDate", "start"),
+                         ("end", "end"), ("endDate", "end"),
+                         ("activeEnergyBurned", "energy"), ("activeEnergy", "energy"),
+                         ("distance", "distance")):
+            if w.get(src) is not None and dst not in extra:
+                extra[dst] = w.get(src)
+        add("workout", end or start, minutes, extra)
 
     for m in metrics:
         if not isinstance(m, dict):
@@ -489,6 +519,26 @@ def _fold_daily(samples):
                     if isinstance(v2, (int, float)):
                         lo, hi = min(lo, v2), max(hi, v2)
             extra = {"min": lo, "max": hi}
+        elif metric == "workout":
+            # 运动不求和成一条，保留每次训练的名字/时长/时间
+            sessions, total = [], 0.0
+            for i in items:
+                try:
+                    ex = json.loads(i.get("extra") or "{}")
+                except (TypeError, ValueError):
+                    ex = {}
+                mins = i["value"] or 0
+                total += mins
+                sessions.append({
+                    "name": ex.get("name") or "运动",
+                    "minutes": round(mins, 1),
+                    "start": ex.get("start"),
+                    "end": ex.get("end"),
+                    "energy": ex.get("energy"),
+                    "distance": ex.get("distance"),
+                })
+            value = total
+            extra = {"sessions": sessions}
         elif metric == "sleep":
             unseen, seen = [], set()
             for i in items:
@@ -576,6 +626,17 @@ def days_api(request: Request, start: str = "", end: str = ""):
     agg, recv = _aggregate(rows)
 
     # 睡眠阶段（深睡/核心/REM/清醒）与入睡-起床窗口
+    workout_sessions = {}
+    for r in rows:
+        if r["metric"] != "workout" or not r.get("extra"):
+            continue
+        try:
+            ex = json.loads(r["extra"])
+        except (TypeError, ValueError):
+            continue
+        if isinstance(ex.get("sessions"), list):
+            workout_sessions.setdefault(r["day"], []).extend(ex["sessions"])
+
     sleep_extra = {}
     for r in rows:
         if r["metric"] != "sleep" or not r.get("extra"):
@@ -604,6 +665,7 @@ def days_api(request: Request, start: str = "", end: str = ""):
         se = sleep_extra.get(day) or {}
         item["sleep_stages"] = se.get("stages") or {}
         item["sleep_window"] = se.get("window")
+        item["workouts"] = workout_sessions.get(day, [])
         out.append(item)
     return {"ok": True, "start": start_d.isoformat(), "end": end_d.isoformat(),
             "today": out[-1] if out else None, "days": out}
@@ -672,7 +734,7 @@ def demo(request: Request):
 @app.api_route("/healthz", methods=["GET", "HEAD"])
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-22T2240"}
+    return {"ok": True, "rev": "2026-11-23T0155"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -739,6 +801,9 @@ def apple_icon():
 @app.api_route("/", methods=["GET", "HEAD"])
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
+
+
 
 
 
