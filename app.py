@@ -562,10 +562,10 @@ def demo(request: Request):
     return {"ok": True, "seeded_days": 7}
 
 
-@app.get("/healthz")
+@app.api_route("/healthz", methods=["GET", "HEAD"])
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-22T1805"}
+    return {"ok": True, "rev": "2026-11-22T1815"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -629,9 +629,11 @@ def apple_icon():
     return _png("apple-touch-icon.png")
 
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
+
 
 
 
