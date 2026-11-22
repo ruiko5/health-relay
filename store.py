@@ -52,6 +52,13 @@ class Store:
                 recv    DOUBLE PRECISION)""")
             cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_sample ON samples(metric, ts)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_day ON samples(metric, day)")
+            cur.execute("""CREATE TABLE IF NOT EXISTS visits(
+                id  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                day TEXT NOT NULL,
+                ts  TEXT NOT NULL,
+                who TEXT NOT NULL,
+                ua  TEXT)""")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_visit_day ON visits(day)")
             conn.commit()
         else:
             cur.execute("""CREATE TABLE IF NOT EXISTS samples(
@@ -71,6 +78,13 @@ class Store:
             cur.execute("CREATE INDEX IF NOT EXISTS idx_day ON samples(metric, day)")
             if ver < 2:
                 cur.execute("PRAGMA user_version = 2")
+            cur.execute("""CREATE TABLE IF NOT EXISTS visits(
+                id  INTEGER PRIMARY KEY AUTOINCREMENT,
+                day TEXT NOT NULL,
+                ts  TEXT NOT NULL,
+                who TEXT NOT NULL,
+                ua  TEXT)""")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_visit_day ON visits(day)")
             conn.commit()
         conn.close()
 
@@ -138,3 +152,29 @@ class Store:
         return n
 
 
+
+    # ---------------------------------------------------------------- 访问统计
+    def log_visit(self, day: str, ts: str, who: str, ua: str):
+        conn = self.connect()
+        try:
+            cur = conn.cursor()
+            cur.execute("INSERT INTO visits(day, ts, who, ua) VALUES (%s, %s, %s, %s)"
+                        if self.kind == "postgres"
+                        else "INSERT INTO visits(day, ts, who, ua) VALUES (?, ?, ?, ?)",
+                        (day, ts, who, (ua or "")[:120]))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def visits(self, start: str, end: str):
+        conn = self.connect()
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT day, ts, who, ua FROM visits WHERE day >= %s AND day <= %s ORDER BY ts"
+                        if self.kind == "postgres"
+                        else "SELECT day, ts, who, ua FROM visits WHERE day >= ? AND day <= ? ORDER BY ts",
+                        (start, end))
+            rows = cur.fetchall()
+        finally:
+            conn.close()
+        return [{"day": r[0], "ts": r[1], "who": r[2], "ua": r[3]} for r in rows]
