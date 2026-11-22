@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#F5F6F8">
+<meta name="theme-color" content="#F2F2F7">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="憨憨的健康数据">
@@ -13,132 +13,194 @@
 <title>憨憨的健康数据</title>
 <style>
   :root{
-    --bg:#F5F6F8; --card:#FFFFFF; --ink:#111827; --sub:#9CA3AF; --line:#F1F2F4;
-    --shadow:0 2px 10px rgba(17,24,39,.06), 0 8px 24px -12px rgba(17,24,39,.10);
-    --ring-energy:#FF9500; --ring-steps:#34C759; --ring-move:#007AFF;
+    --bg:#F2F2F7; --card:#fff; --ink:#000; --sub:#8E8E93; --sub2:#C7C7CC;
+    --sep:#E5E5EA; --red:#FF3B30; --green:#34C759; --blue:#007AFF;
+    --purple:#AF52DE; --orange:#FF9500; --teal:#30B0C7; --pink:#FF2D55;
+    --shadow:0 1px 2px rgba(0,0,0,.04), 0 4px 16px -6px rgba(0,0,0,.08);
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;padding:0;background:var(--bg)}
-  body{
-    font:16px/1.45 -apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
-    color:var(--ink);
-    display:flex;justify-content:center;
-    padding:max(10px,env(safe-area-inset-top)) 0 0;
-  }
-  .app{width:100%;max-width:420px;padding:0 18px calc(28px + env(safe-area-inset-bottom))}
+  html,body{margin:0;background:var(--bg)}
+  body{font:17px/1.35 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",sans-serif;
+    color:var(--ink);display:flex;justify-content:center;
+    padding:max(8px,env(safe-area-inset-top)) 0 0}
+  .app{width:100%;max-width:420px;padding:0 16px calc(30px + env(safe-area-inset-bottom))}
+  .view{display:none}
+  .view.on{display:block;animation:in .22s ease}
+  @keyframes in{from{transform:translateY(5px)}to{transform:none}}
 
-  /* ---------- 顶部 ---------- */
-  header{display:flex;align-items:center;justify-content:space-between;padding:14px 2px 6px}
-  .iconbtn{width:36px;height:36px;border-radius:50%;border:none;background:transparent;
-    display:flex;align-items:center;justify-content:center;cursor:pointer;color:#374151}
-  .iconbtn:active{background:#ECEEF1}
-  h1{font-size:27px;line-height:1.2;font-weight:700;letter-spacing:-.5px;margin:14px 2px 18px}
+  /* 导航 */
+  .nav{display:flex;align-items:center;gap:6px;min-height:44px}
+  .nav .back{display:flex;align-items:center;gap:2px;color:var(--blue);font-size:17px;
+    background:none;border:none;padding:6px 2px;cursor:pointer}
+  .nav .right{margin-left:auto}
+  .nav .gear{background:none;border:none;color:#8E8E93;padding:6px;cursor:pointer;display:flex}
+  h1.large{font-size:34px;font-weight:700;letter-spacing:-.7px;margin:8px 0 14px}
+  h2.title{font-size:17px;font-weight:600;margin:0}
+  .group-title{font-size:13px;color:var(--sub);text-transform:uppercase;letter-spacing:.4px;
+    margin:22px 4px 8px;font-weight:500}
 
-  /* ---------- 圆环概览 ---------- */
-  .hero{background:var(--card);border-radius:20px;box-shadow:var(--shadow);
-    padding:18px 18px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px}
-  .rings{width:132px;height:132px;flex:none}
-  .legend{flex:1;display:flex;flex-direction:column;gap:10px}
-  .leg{display:flex;align-items:center;gap:8px;font-size:14px;color:#4B5563}
-  .leg b{color:var(--ink);font-weight:650;font-variant-numeric:tabular-nums}
-  .leg .dot{width:9px;height:9px;border-radius:50%;flex:none}
-  .leg small{color:var(--sub);font-size:12.5px}
+  /* 日期条 */
+  .strip{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:none}
+  .strip::-webkit-scrollbar{display:none}
+  .dchip{flex:none;width:50px;padding:8px 0 7px;border-radius:14px;background:#fff;border:none;
+    box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;gap:2px;
+    cursor:pointer;transition:transform .12s}
+  .dchip:active{transform:scale(.95)}
+  .dchip .w{font-size:11px;color:var(--sub)}
+  .dchip .n{font-size:17px;font-weight:600}
+  .dchip .dot{width:4px;height:4px;border-radius:50%;background:var(--green);margin-top:2px;opacity:0}
+  .dchip.has .dot{opacity:1}
+  .dchip.sel{background:#000;color:#fff}
+  .dchip.sel .w{color:rgba(255,255,255,.65)}
+  .dchip.sel .dot{background:#fff}
 
-  /* ---------- 卡片网格 ---------- */
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  .card{background:var(--card);border-radius:18px;box-shadow:var(--shadow);
-    padding:15px 14px 14px;cursor:pointer;transition:transform .12s}
-  .card:active{transform:scale(.985)}
-  .badge{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:12px}
-  .badge svg{width:21px;height:21px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-  .c-heart{background:#FF3B30}.c-bed{background:#8B7CF6}.c-drop{background:#FF6B6B}
-  .c-shoe{background:#34C759}.c-flame{background:#FF9500}.c-person{background:#30C3CF}
-  .c-clock{background:#0A84FF}.c-scale{background:#4CD964}
-  .card .t{font-size:17px;font-weight:650;letter-spacing:-.2px;line-height:1.3}
-  .card .t small{font-size:12.5px;font-weight:500;color:var(--sub);margin-left:2px}
-  .card .s{font-size:12.5px;color:var(--sub);margin-top:5px}
+  /* 卡片 */
+  .card{background:var(--card);border-radius:16px;box-shadow:var(--shadow);
+    padding:16px;cursor:pointer;transition:transform .12s}
+  .card:active{transform:scale(.95)}
+  .hero{display:flex;align-items:center;gap:12px;cursor:default}
+  .hero:active{transform:none}
+  .rings{width:130px;height:130px;flex:none}
+  .legend{flex:1;display:flex;flex-direction:column;gap:11px}
+  .leg{display:flex;align-items:baseline;gap:7px;font-size:15px;color:#3A3A3C}
+  .leg .k{font-size:13px;color:var(--sub);width:52px;flex:none}
+  .leg b{font-size:17px;font-weight:650;font-variant-numeric:tabular-nums}
+  .leg span{color:var(--sub);font-size:13px}
+  .dot{width:8px;height:8px;border-radius:50%;flex:none;align-self:center}
 
-  /* ---------- 弹层 ---------- */
-  .mask{position:fixed;inset:0;background:rgba(17,24,39,.35);opacity:0;pointer-events:none;transition:opacity .2s;z-index:40}
-  .mask.on{opacity:1;pointer-events:auto}
-  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:50;background:#fff;border-radius:22px 22px 0 0;
-    padding:10px 20px calc(20px + env(safe-area-inset-bottom));transform:translateY(102%);
-    transition:transform .24s cubic-bezier(.2,.8,.2,1);max-height:80vh;overflow:auto}
-  .sheet.on{transform:translateY(0)}
-  .grab{width:38px;height:4px;border-radius:4px;background:#E5E7EB;margin:4px auto 14px}
-  .sheet h3{margin:0 0 4px;font-size:18px;font-weight:700}
-  .sheet .when{font-size:12.5px;color:var(--sub);margin-bottom:12px}
-  .row{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .tile .ico{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    margin-bottom:10px}
+  .tile .ico svg{width:19px;height:19px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .tile .h{font-size:15px;color:var(--sub);display:flex;align-items:center;gap:5px}
+  .tile .v{font-size:26px;font-weight:700;letter-spacing:-.6px;margin-top:2px;font-variant-numeric:tabular-nums}
+  .tile .v small{font-size:13px;font-weight:500;color:var(--sub);margin-left:2px;letter-spacing:0}
+  .tile .s{font-size:12.5px;color:var(--sub);margin-top:3px}
+
+  /* 详情 */
+  .bigstat{display:flex;align-items:flex-end;gap:10px;margin:6px 0 2px}
+  .bigstat .r{font-size:40px;font-weight:700;letter-spacing:-1.4px;line-height:1}
+  .bigstat .r small{font-size:15px;font-weight:500;color:var(--sub);margin-left:4px}
+  .bigstat .a{margin-left:auto;text-align:right;font-size:13px;color:var(--sub)}
+  .bigstat .a b{display:block;font-size:22px;color:var(--ink);font-weight:650}
+  .chartcard{padding:12px 8px 6px}
+  .chartcard .cap{font-size:12.5px;color:var(--sub);margin:0 8px 6px}
+  .list{background:#fff;border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
+  .row{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;
+    border-bottom:1px solid var(--sep);font-size:16px}
   .row:last-child{border-bottom:none}
-  .row .k{color:#6B7280;font-size:14px}
-  .row .v{font-weight:650;font-variant-numeric:tabular-nums}
-  .wrow{display:flex;align-items:center;gap:10px;padding:9px 0}
-  .wrow .wi{width:34px;height:34px;border-radius:11px;background:#FFF4E5;display:flex;align-items:center;justify-content:center;flex:none}
-  .wrow .wi svg{width:18px;height:18px;stroke:#FF9500;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .row .l{display:flex;align-items:center;gap:10px}
+  .row .l svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .row .r{color:var(--sub);font-variant-numeric:tabular-nums}
+  .wrow{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--sep)}
+  .wrow:last-child{border-bottom:none}
+  .wrow .wi{width:38px;height:38px;border-radius:50%;background:#FFF1E0;display:flex;align-items:center;
+    justify-content:center;flex:none}
+  .wrow .wi svg{width:20px;height:20px;stroke:var(--orange);fill:none;stroke-width:2;stroke-linecap:round}
   .wrow .wt{flex:1;min-width:0}
-  .wrow .wt b{display:block;font-size:14.5px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .wrow .wt span{font-size:12px;color:var(--sub)}
-  .empty{text-align:center;color:var(--sub);font-size:13.5px;padding:26px 0}
-  footer{text-align:center;font-size:11.5px;color:#B0B7C3;margin-top:18px;line-height:1.8}
+  .wrow .wt b{display:block;font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .wrow .wt span{font-size:12.5px;color:var(--sub)}
+  .empty{text-align:center;color:var(--sub);font-size:14px;padding:26px 8px}
+  footer{text-align:center;font-size:11.5px;color:var(--sub2);margin-top:20px;line-height:1.8}
+  .mask{position:fixed;inset:0;background:rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:opacity .2s;z-index:40}
+  .mask.on{opacity:1;pointer-events:auto}
 </style>
 </head>
 <body>
 <div class="app">
-  <header>
-    <button class="iconbtn" id="back" aria-label="返回">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-    </button>
-    <button class="iconbtn" id="gear" aria-label="历史">
-      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-        stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/>
-        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33
-        1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 008 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0
-        11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65
-        1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0
-        114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4
-        9v0a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-    </button>
-  </header>
 
-  <h1>憨憨的健康数据</h1>
+  <!-- ================= 主页 ================= -->
+  <section class="view on" id="v-home">
+    <div class="nav">
+      <span style="width:36px"></span>
+      <button class="gear right" id="gear" aria-label="最近 7 天">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+          stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33
+          1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 008 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0
+          11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6
+          9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0
+          001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65
+          1.65 0 0019.4 9v0a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      </button>
+    </div>
+    <h1 class="large">憨憨的健康数据</h1>
+    <div class="strip" id="strip-home"></div>
+    <div id="hero-home"></div>
+    <div class="grid" id="grid-home" style="margin-top:12px"></div>
+    <footer>数据来自 Apple Watch / vivo 手表 → 苹果健康 → 自动同步</footer>
+  </section>
 
-  <div id="hero"></div>
-  <div class="grid" id="grid"></div>
+  <!-- ================= 心率详情 ================= -->
+  <section class="view" id="v-hr">
+    <div class="nav">
+      <button class="back" data-back>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+          stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        返回
+      </button>
+      <h2 class="title" style="margin-left:8px">心率</h2>
+      <span class="right" id="hr-date" style="font-size:14px;color:#8E8E93"></span>
+    </div>
+    <div class="strip" id="strip-hr" style="margin-top:8px"></div>
+    <div id="hr-body"></div>
+  </section>
 
-  <footer>数据来自 Apple Watch / vivo 手表 → 苹果健康 → 自动同步<br>点任意卡片查看当天明细</footer>
+  <!-- ================= 运动详情 ================= -->
+  <section class="view" id="v-act">
+    <div class="nav">
+      <button class="back" data-back>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+          stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        返回
+      </button>
+      <h2 class="title" style="margin-left:8px">运动与活动</h2>
+      <span class="right" id="act-date" style="font-size:14px;color:#8E8E93"></span>
+    </div>
+    <div class="strip" id="strip-act" style="margin-top:8px"></div>
+    <div id="act-body"></div>
+  </section>
 </div>
 
 <div class="mask" id="mask"></div>
-<div class="sheet" id="sheet"><div class="grab"></div><div id="sheetBody"></div></div>
 
 <script>
+/* ============ 基础 ============ */
 const TOKEN = new URLSearchParams(location.search).get('token') || '';
 const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const GOALS = { energy: 300, steps: 6000, move: 30 };
-const dayMap = {};
-
-const ICONS = {
-  heart: '<path d="M12 20.3s-7-4.5-8.8-9A5.1 5.1 0 0112 7.7a5.1 5.1 0 018.8 3.6c-1.8 4.5-8.8 9-8.8 9z"/>',
-  bed: '<path d="M3 18v-5a2 2 0 012-2h14a2 2 0 012 2v5"/><path d="M3 18h18"/><path d="M7 11V8h5v3"/>',
-  drop: '<path d="M12 3.2c3.2 4 5.2 6.6 5.2 9.1a5.2 5.2 0 11-10.4 0c0-2.5 2-5.1 5.2-9.1z"/>',
-  shoe: '<ellipse cx="9" cy="8" rx="3" ry="4.2"/><ellipse cx="16" cy="16" rx="3" ry="4.2"/>',
-  flame: '<path d="M12 3.2s4.7 4.6 4.7 8.5a4.7 4.7 0 11-9.4 0c0-1.9 1-3.2 2-4.1 0 1.8.9 2.9 1.9 2.9 0-2.9.8-5.6.8-7.3z"/>',
-  person: '<circle cx="12" cy="6" r="2.4"/><path d="M12 9v5"/><path d="M7.5 12h9"/><path d="M12 14l-3 6"/><path d="M12 14l3 6"/>',
-  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
-  scale: '<rect x="4" y="5" width="16" height="14" rx="3"/><path d="M8 5V3.5h8V5"/><path d="M12 12l2-2"/>',
-  run: '<circle cx="14" cy="5" r="2"/><path d="M13 8l-3 4 3 2 1 5"/><path d="M10 12l-3 1-1 4"/>'
-};
-const svgIcon = k => `<svg viewBox="0 0 24 24">${ICONS[k] || ''}</svg>`;
 const pad = n => String(n).padStart(2, '0');
 const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const parseISO = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
-const today = new Date();
-const TODAY = iso(today);
-const monthDay = s => { const d = parseISO(s); return `${d.getMonth() + 1}月${d.getDate()}日`; };
+const now = new Date();
+const TODAY = iso(now);
+const md = s => { const d = parseISO(s); return `${d.getMonth() + 1}月${d.getDate()}日`; };
+const wd = s => ['周日','周一','周二','周三','周四','周五','周六'][parseISO(s).getDay()];
+const hm = h => h == null ? '--' : `${Math.floor(h)}小时${Math.round((h % 1) * 60)}分`;
 const clock = s => { const m = String(s || '').match(/(\d{2}):(\d{2})/); return m ? `${m[1]}:${m[2]}` : ''; };
 
+const GOALS = { energy: 300, steps: 6000, move: 30 };
+const dayMap = {};
+let selected = iso(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)); // 默认昨天
+
+const ICONS = {
+  heart:'<path d="M12 20.3s-7-4.5-8.8-9A5.1 5.1 0 0112 7.7a5.1 5.1 0 018.8 3.6c-1.8 4.5-8.8 9-8.8 9z"/>',
+  bed:'<path d="M3 18v-5a2 2 0 012-2h14a2 2 0 012 2v5"/><path d="M3 18h18"/><path d="M7 11V8h5v3"/>',
+  bp:'<path d="M3 12h3l2-5 3 10 2-6 2 3h6"/>',
+  shoe:'<ellipse cx="9" cy="8" rx="3" ry="4.2"/><ellipse cx="16" cy="16" rx="3" ry="4.2"/>',
+  flame:'<path d="M12 3.2s4.7 4.6 4.7 8.5a4.7 4.7 0 11-9.4 0c0-1.9 1-3.2 2-4.1 0 1.8.9 2.9 1.9 2.9 0-2.9.8-5.6.8-7.3z"/>',
+  stand:'<circle cx="12" cy="5.5" r="2.2"/><path d="M12 8v6"/><path d="M8 11h8"/><path d="M12 14l-2.5 6"/><path d="M12 14l2.5 6"/>',
+  timer:'<circle cx="12" cy="13" r="7.5"/><path d="M12 9.5V13l2.5 1.5"/><path d="M9 2h6"/>',
+  scale:'<rect x="4" y="5" width="16" height="14" rx="3"/><path d="M8 5V3.5h8V5"/><path d="M12 12l2-2"/>',
+  run:'<circle cx="14" cy="5" r="2"/><path d="M13 8l-3 4 3 2 1 5"/><path d="M10 12l-3 1-1 4"/>',
+  drop:'<path d="M12 3.2c3.2 4 5.2 6.6 5.2 9.1a5.2 5.2 0 11-10.4 0c0-2.5 2-5.1 5.2-9.1z"/>',
+  route:'<path d="M6 18h6a3 3 0 000-6H9a3 3 0 010-6h6"/><circle cx="18" cy="6" r="1.8"/><circle cx="6" cy="18" r="1.8"/>',
+  stairs:'<path d="M4 20h4v-4h4v-4h4V8h4"/>'
+};
+const svg = (k, attrs = '') => `<svg viewBox="0 0 24 24" ${attrs}>${ICONS[k] || ''}</svg>`;
+
+/* ============ 数据 ============ */
 async function fetchWarm(url, tries = 8) {
   for (let i = 0; i < tries; i++) {
     try {
@@ -154,177 +216,288 @@ async function fetchWarm(url, tries = 8) {
   }
 }
 
+/* ============ 组件 ============ */
+function dateStrip(el, onPick, days = 14) {
+  const items = [];
+  for (let i = 0; i < days; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+    items.push(iso(d));
+  }
+  el.innerHTML = items.map(k => {
+    const rec = dayMap[k];
+    const label = k === TODAY ? '今天' : k === iso(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)) ? '昨天' : wd(k);
+    return `<button class="dchip ${k === selected ? 'sel' : ''} ${rec && rec.has_data ? 'has' : ''}" data-k="${k}">
+      <span class="w">${label}</span>
+      <span class="n">${parseISO(k).getDate()}</span>
+      <span class="dot"></span>
+    </button>`;
+  }).join('');
+  el.querySelectorAll('[data-k]').forEach(b => b.addEventListener('click', () => onPick(b.dataset.k)));
+}
+
+function ringSVG(t, size = 130) {
+  const clamp = v => Math.max(0, Math.min(1, v));
+  const e = clamp((t.extras?.active_energy || 0) / GOALS.energy);
+  const s = clamp((t.steps || 0) / GOALS.steps);
+  const m = clamp((t.workout_minutes || 0) / GOALS.move);
+  const c = size / 2;
+  const arc = (r, p, color) => {
+    const C = 2 * Math.PI * r;
+    return `<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="#F2F2F7" stroke-width="${size * 0.072}"/>
+      <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="${size * 0.072}"
+        stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - p)}"
+        transform="rotate(-90 ${c} ${c})"/>`;
+  };
+  return `<svg class="rings" viewBox="0 0 ${size} ${size}" style="width:${size}px;height:${size}px">
+    ${arc(size * 0.4166, e, '#FF3B30')}
+    ${arc(size * 0.3181, s, '#34C759')}
+    ${arc(size * 0.2196, m, '#007AFF')}
+  </svg>`;
+}
+
+/** 平滑面积图：points = [{x:0..1, y:数值}]，返回 svg 字符串 */
+function areaChart(points, { w = 340, h = 130, color = '#FF3B30', min = null, max = null } = {}) {
+  if (!points.length) return `<div class="empty">暂无图表数据</div>`;
+  const ys = points.map(p => p.y);
+  const lo = min != null ? min : Math.min(...ys) * 0.92;
+  const hi = max != null ? max : Math.max(...ys) * 1.06;
+  const padY = 10;
+  const X = p => p.x * (w - 8) + 4;
+  const Y = v => h - padY - ((v - lo) / (hi - lo || 1)) * (h - padY * 2);
+
+  const pts = points.map(p => ({ x: X(p), y: Y(p.y) }));
+  // Catmull-Rom -> bezier，做平滑
+  let d = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    const c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+  }
+  const area = `${d} L${pts[pts.length - 1].x.toFixed(1)},${h} L${pts[0].x.toFixed(1)},${h} Z`;
+  const gid = 'g' + Math.random().toString(36).slice(2, 7);
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:${h}px;display:block">
+    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${color}" stop-opacity=".28"/>
+      <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+    </linearGradient></defs>
+    <path d="${area}" fill="url(#${gid})"/>
+    <path d="${d}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    ${pts.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2.6" fill="#fff" stroke="${color}" stroke-width="2"/>`).join('')}
+  </svg>`;
+}
+
+/* ============ 主页 ============ */
 function latestDay() {
   for (let i = 0; i < 60; i++) {
-    const k = iso(new Date(today.getFullYear(), today.getMonth(), today.getDate() - i));
-    if (dayMap[k] && dayMap[k].has_data) return dayMap[k];
+    const k = iso(new Date(now.getFullYear(), now.getMonth(), now.getDate() - i));
+    if (dayMap[k]?.has_data) return k;
   }
   return null;
 }
 
-function ringSVG(t) {
-  const pct = v => Math.max(0, Math.min(1, v));
-  const e = pct((t.extras?.active_energy || 0) / GOALS.energy);
-  const s = pct((t.steps || 0) / GOALS.steps);
-  const m = pct((t.workout_minutes || 0) / GOALS.move);
-  const arc = (r, p, color) => {
-    const C = 2 * Math.PI * r;
-    return `<circle cx="66" cy="66" r="${r}" fill="none" stroke="#F0F1F3" stroke-width="9"/>
-            <circle cx="66" cy="66" r="${r}" fill="none" stroke="${color}" stroke-width="9"
-              stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - p)}"
-              transform="rotate(-90 66 66)"/>`;
-  };
-  return `<svg class="rings" viewBox="0 0 132 132">
-    ${arc(55, e, 'var(--ring-energy)')}
-    ${arc(42, s, 'var(--ring-steps)')}
-    ${arc(29, m, 'var(--ring-move)')}
-  </svg>`;
-}
+function renderHome() {
+  const key = dayMap[selected]?.has_data ? selected : latestDay();
+  const t = key ? dayMap[key] : null;
+  dateStrip($('#strip-home'), k => { selected = k; renderHome(); });
 
-function card(icon, cls, title, unit, sub, dayKey) {
-  return `<div class="card" data-day="${dayKey}">
-    <div class="badge ${cls}">${svgIcon(icon)}</div>
-    <div class="t">${title}${unit ? `<small>${unit}</small>` : ''}</div>
-    <div class="s">${sub}</div>
-  </div>`;
-}
-
-function render() {
-  const t = dayMap[TODAY]?.has_data ? dayMap[TODAY] : latestDay();
   if (!t) {
-    $('#hero').innerHTML = `<div class="hero"><div class="empty">还没有数据，等手机同步一次</div></div>`;
-    $('#grid').innerHTML = '';
+    $('#hero-home').innerHTML = `<div class="card hero"><div class="empty">还没有数据，等手机同步一次</div></div>`;
+    $('#grid-home').innerHTML = '';
     return;
   }
   const ex = t.extras || {};
   const energy = Math.round(ex.active_energy || 0);
   const minutes = Math.round(t.workout_minutes || 0);
-  const dayKey = t.day;
-  const isToday = t.day === TODAY;
-  const subDate = isToday ? '今天' : monthDay(t.day);
-
-  const sleepH = t.sleep_hours;
-  const sleepTxt = sleepH == null ? '睡眠' : `睡眠${Math.floor(sleepH)}小时${Math.round((sleepH % 1) * 60)}分`;
   const spo2 = ex.oxygen_saturation != null ? (ex.oxygen_saturation <= 1.5 ? Math.round(ex.oxygen_saturation * 100) : Math.round(ex.oxygen_saturation)) : null;
   const weight = ex.weight ?? ex.body_mass ?? null;
-  const flights = ex.flights_climbed != null ? Math.round(ex.flights_climbed) : null;
+  const stand = ex.apple_stand_time ?? ex.stand_hours ?? null;
+  const bp = ex.blood_pressure_systolic != null ? `${Math.round(ex.blood_pressure_systolic)}/${Math.round(ex.blood_pressure_diastolic || 0)}` : null;
+  const actMin = ex.apple_exercise_time ?? ex.exercise_minutes ?? t.workout_minutes ?? null;
 
-  $('#hero').innerHTML = `<div class="hero">
+  $('#hero-home').innerHTML = `<div class="card hero">
     ${ringSVG(t)}
     <div class="legend">
-      <div class="leg"><span class="dot" style="background:#FF9500"></span>
-        <b>${energy}</b><span>/ ${GOALS.energy}千卡</span></div>
-      <div class="leg"><span class="dot" style="background:#34C759"></span>
-        <b>${t.steps ?? 0}</b><span>/ ${GOALS.steps}步</span></div>
-      <div class="leg"><span class="dot" style="background:#007AFF"></span>
-        <b>${minutes}</b><span>/ ${GOALS.move}分</span></div>
+      <div class="leg"><span class="dot" style="background:#FF3B30"></span><span class="k">卡路里</span><b>${energy}</b><span>/ ${GOALS.energy}</span></div>
+      <div class="leg"><span class="dot" style="background:#34C759"></span><span class="k">步数</span><b>${t.steps ?? 0}</b><span>/ ${GOALS.steps}</span></div>
+      <div class="leg"><span class="dot" style="background:#007AFF"></span><span class="k">锻炼</span><b>${minutes}</b><span>/ ${GOALS.move}</span></div>
     </div>
   </div>`;
 
-  $('#grid').innerHTML = [
-    card('heart', 'c-heart', t.hr_avg != null ? `心率${t.hr_avg}` : '心率', '次/分', t.hr_avg != null ? subDate : '暂无数据', dayKey),
-    card('bed', 'c-bed', sleepTxt, '', sleepH != null ? subDate : '暂无数据', dayKey),
-    card('drop', 'c-drop', spo2 != null ? `血氧${spo2}` : '血氧', spo2 != null ? '%' : '', spo2 != null ? subDate : '暂无数据', dayKey),
-    card('shoe', 'c-shoe', t.steps != null ? `步数${t.steps}` : '步数', t.steps != null ? '步' : '', t.steps != null ? subDate : '暂无数据', dayKey),
-    card('flame', 'c-flame', minutes ? `运动${minutes}` : '运动', minutes ? '分钟' : '',
-      minutes ? `${(t.workouts || []).length} 次训练` : '暂无数据', dayKey),
-    card('person', 'c-person', energy ? `活动${energy}` : '活动能量', energy ? '千卡' : '',
-      energy ? subDate : '暂无数据', dayKey),
-    card('clock', 'c-clock', flights != null ? `爬楼${flights}` : '爬楼层数', flights != null ? '层' : '',
-      flights != null ? subDate : '暂无数据', dayKey),
-    card('scale', 'c-scale', weight != null ? `体重${weight}` : '体重', weight != null ? 'kg' : '',
-      weight != null ? subDate : '暂无数据', dayKey),
+  const tile = (icon, color, title, value, unit, sub, go) => `
+    <div class="card tile" ${go ? `data-go="${go}"` : ''}>
+      <div class="ico" style="background:${color}">${svg(icon)}</div>
+      <div class="h">${title}</div>
+      <div class="v">${value}${unit ? `<small>${unit}</small>` : ''}</div>
+      <div class="s">${sub}</div>
+    </div>`;
+
+  $('#grid-home').innerHTML = [
+    tile('heart', '#FF3B30', '心率', t.hr_avg ?? '--', '次/分', t.hr_avg != null ? `${t.hr_min}–${t.hr_max} bpm` : '暂无数据', 'hr'),
+    tile('bed', '#AF52DE', '睡眠', t.sleep_hours != null ? (t.sleep_hours).toFixed(1) : '--', '小时', t.sleep_window ? `${clock(t.sleep_window[0])}–${clock(t.sleep_window[1])}` : '暂无数据', ''),
+    tile('bp', '#FF2D55', '血压', bp ?? '--', bp ? 'mmHg' : '', bp ? '最近一次' : '暂无数据', ''),
+    tile('shoe', '#34C759', '步数', t.steps ?? '--', '步', t.steps != null ? md(t.day) : '暂无数据', 'act'),
+    tile('flame', '#FF9500', '卡路里', energy != null ? energy : '--', '千卡', energy != null ? md(t.day) : '暂无数据', 'act'),
+    tile('stand', '#30B0C7', '站立', stand != null ? Math.round(stand) : '--', stand != null ? '小时' : '', stand != null ? md(t.day) : '暂无数据', ''),
+    tile('timer', '#007AFF', '活动时长', actMin != null ? Math.round(actMin) : '--', actMin != null ? '分钟' : '', actMin != null ? md(t.day) : '暂无数据', 'act'),
+    tile('scale', '#34C759', '体重', weight ?? '--', weight != null ? 'kg' : '', weight != null ? md(t.day) : '暂无数据', ''),
   ].join('');
+
+  $$('#grid-home [data-go]').forEach(el => el.addEventListener('click', () => nav(el.dataset.go)));
 }
 
-/* ---------- 详情弹层 ---------- */
-function openSheet(key) {
-  const rec = dayMap[key] || {};
-  const d = parseISO(key);
-  const rows = [];
-  const row = (k, v) => `<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
-  if (rec.sleep_hours != null) {
-    const w = rec.sleep_window;
-    rows.push(row('睡眠', `${Math.floor(rec.sleep_hours)}小时${Math.round((rec.sleep_hours % 1) * 60)}分` +
-      (w ? ` · ${clock(w[0])}–${clock(w[1])}` : '')));
-  }
-  if (rec.hr_avg != null) rows.push(row('心率', `${rec.hr_avg} 次/分（${rec.hr_min}–${rec.hr_max}）`));
-  if (rec.steps != null) rows.push(row('步数', `${rec.steps} 步`));
-  if (rec.workout_minutes) rows.push(row('运动', `${Math.round(rec.workout_minutes)} 分钟`));
-  const ex = rec.extras || {};
-  if (ex.active_energy != null) rows.push(row('活动能量', `${Math.round(ex.active_energy)} 千卡`));
-  if (ex.basal_energy_burned != null) rows.push(row('基础代谢', `${Math.round(ex.basal_energy_burned)} 千卡`));
-  if (ex.walking_running_distance != null) rows.push(row('步行距离', `${Math.round(ex.walking_running_distance * 10) / 10} 公里`));
-  if (ex.oxygen_saturation != null) {
-    const v = ex.oxygen_saturation <= 1.5 ? Math.round(ex.oxygen_saturation * 100) : Math.round(ex.oxygen_saturation);
-    rows.push(row('血氧', `${v}%`));
-  }
-  if (ex.flights_climbed != null) rows.push(row('爬楼', `${Math.round(ex.flights_climbed)} 层`));
+/* ============ 心率详情 ============ */
+function renderHR() {
+  const t = dayMap[selected] || {};
+  dateStrip($('#strip-hr'), k => { selected = k; renderHR(); });
+  $('#hr-date').textContent = md(selected);
 
-  const workouts = (rec.workouts || []).map(w => `
-    <div class="wrow">
-      <div class="wi">${svgIcon('run')}</div>
-      <div class="wt"><b>${w.name}</b>
-        <span>${clock(w.start)}–${clock(w.end)} · ${Math.round(w.minutes)} 分钟${w.energy ? ` · ${Math.round(w.energy)} 千卡` : ''}</span>
+  if (!t.has_data || t.hr_avg == null) {
+    $('#hr-body').innerHTML = `<div class="card" style="margin-top:12px"><div class="empty">这一天没有心率数据</div></div>`;
+    return;
+  }
+  // 用最近 7 天平均值画趋势（当前只存了按天汇总，没有一天内的逐条样本）
+  const trend = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(parseISO(selected).getFullYear(), parseISO(selected).getMonth(), parseISO(selected).getDate() - i);
+    const k = iso(d);
+    if (dayMap[k]?.hr_avg != null) trend.push({ x: (6 - i) / 6, y: dayMap[k].hr_avg, label: md(k) });
+  }
+
+  $('#hr-body').innerHTML = `
+    <div class="bigstat">
+      <div class="r">${t.hr_min ?? '--'}–${t.hr_max ?? '--'}<small>bpm</small></div>
+      <div class="a">平均<b>${t.hr_avg ?? '--'}</b></div>
+    </div>
+    <div class="card chartcard" style="margin-top:12px;cursor:default">
+      <div class="cap">最近 7 天平均心率</div>
+      ${areaChart(trend.map(p => ({ x: p.x, y: p.y })), { color: '#FF3B30' })}
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:#C7C7CC;padding:2px 10px 6px">
+        ${trend.map(p => `<span>${p.label.slice(0, p.label.indexOf('月') + 1)}${p.label.split('月')[1].replace('日','')}</span>`).join('')}
       </div>
-    </div>`).join('');
-
-  $('#sheetBody').innerHTML = `
-    <h3>${d.getMonth() + 1} 月 ${d.getDate()} 日</h3>
-    <div class="when">${rec.updated_at ? '更新于 ' + rec.updated_at : '暂无数据'}</div>
-    ${workoutsBlock(workouts)}
-    ${rows.length ? rows.join('') : '<div class="empty">这一天还没有数据</div>'}`;
-  $('#sheet').classList.add('on');
-  $('#mask').classList.add('on');
-}
-const workoutsBlock = html => html ? `<div style="margin:6px 0 10px">${html}</div>` : '';
-
-function closeSheet() {
-  $('#sheet').classList.remove('on');
-  $('#mask').classList.remove('on');
+    </div>
+    <div class="group-title">明细</div>
+    <div class="list">
+      <div class="row"><span class="l">${svg('heart')}最高心率</span><span class="r">${t.hr_max ?? '--'} bpm</span></div>
+      <div class="row"><span class="l">${svg('heart')}最低心率</span><span class="r">${t.hr_min ?? '--'} bpm</span></div>
+      <div class="row"><span class="l">${svg('heart')}静息心率</span><span class="r">${t.resting_hr ?? '--'} bpm</span></div>
+      <div class="row"><span class="l">${svg('timer')}平均心率</span><span class="r">${t.hr_avg} bpm</span></div>
+    </div>`;
 }
 
-document.addEventListener('click', e => {
-  const c = e.target.closest('[data-day]');
-  if (c) openSheet(c.dataset.day);
-});
-$('#mask').addEventListener('click', closeSheet);
-$('#back').addEventListener('click', () => history.length > 1 ? history.back() : null);
+/* ============ 运动详情 ============ */
+function renderAct() {
+  const t = dayMap[selected] || {};
+  dateStrip($('#strip-act'), k => { selected = k; renderAct(); });
+  $('#act-date').textContent = md(selected);
+
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(parseISO(selected).getFullYear(), parseISO(selected).getMonth(), parseISO(selected).getDate() - i);
+    const k = iso(d);
+    days.push({ k, steps: dayMap[k]?.steps || 0, label: md(k) });
+  }
+  const trend = days.map((d, i) => ({ x: i / 6, y: d.steps }));
+
+  const wlist = (t.workouts || []).map(w => {
+    const hour = Number((w.start || '').slice(11, 13)) || 0;
+    const part = hour < 12 ? '上午' : hour < 18 ? '下午' : '晚上';
+    return `<div class="wrow">
+      <div class="wi">${svg('run')}</div>
+      <div class="wt"><b>${w.name}</b>
+        <span>${part} · ${clock(w.start)}–${clock(w.end)} · ${Math.round(w.minutes)} 分钟${w.energy ? ` · ${Math.round(w.energy)} 千卡` : ''}</span>
+      </div></div>`;
+  }).join('');
+
+  const ex = t.extras || {};
+  $('#act-body').innerHTML = `
+    <div class="card" style="margin-top:12px;cursor:default">
+      <div style="display:flex;align-items:center;gap:14px">
+        ${ringSVG({ steps: t.steps, workout_minutes: t.workout_minutes, extras: ex }, 112)}
+        <div style="flex:1">
+          <div style="font-size:13px;color:var(--sub)">今日步数</div>
+          <div style="font-size:30px;font-weight:700;letter-spacing:-.8px">${(t.steps ?? 0).toLocaleString('zh-CN')}<small style="font-size:13px;color:var(--sub);font-weight:500"> 步</small></div>
+          <div style="font-size:12.5px;color:var(--sub);margin-top:2px">目标 ${GOALS.steps.toLocaleString('zh-CN')} 步 · ${Math.round(Math.min(100, (t.steps || 0) / GOALS.steps * 100))}%</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card chartcard" style="margin-top:12px;cursor:default">
+      <div class="cap">最近 7 天步数</div>
+      ${areaChart(trend, { color: '#34C759' })}
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:#C7C7CC;padding:2px 10px 6px">
+        ${days.map(d => `<span>${d.label}</span>`).join('')}
+      </div>
+    </div>
+
+    ${wlist ? `<div class="group-title">运动记录</div><div class="list">${wlist}</div>` : ''}
+
+    <div class="group-title">当天数据</div>
+    <div class="list">
+      <div class="row"><span class="l">${svg('route')}步行距离</span><span class="r">${ex.walking_running_distance != null ? (Math.round(ex.walking_running_distance * 10) / 10) + ' 公里' : '--'}</span></div>
+      <div class="row"><span class="l">${svg('stairs')}爬楼层数</span><span class="r">${ex.flights_climbed != null ? Math.round(ex.flights_climbed) + ' 层' : '--'}</span></div>
+      <div class="row"><span class="l">${svg('flame')}活动能量</span><span class="r">${ex.active_energy != null ? Math.round(ex.active_energy) + ' 千卡' : '--'}</span></div>
+      <div class="row"><span class="l">${svg('timer')}锻炼时长</span><span class="r">${t.workout_minutes ? Math.round(t.workout_minutes) + ' 分钟' : '--'}</span></div>
+    </div>`;
+}
+
+/* ============ 视图切换 ============ */
+function nav(view) {
+  $$('.view').forEach(v => v.classList.remove('on'));
+  $('#v-' + view).classList.add('on');
+  window.scrollTo({ top: 0 });
+  if (view === 'hr') renderHR();
+  if (view === 'act') renderAct();
+}
+$$('[data-back]').forEach(b => b.addEventListener('click', () => nav('home')));
+
+/* 最近 7 天列表（齿轮） */
 $('#gear').addEventListener('click', () => {
   const keys = Object.keys(dayMap).filter(k => dayMap[k].has_data).sort().reverse().slice(0, 7);
-  $('#sheetBody').innerHTML = `<h3>最近 7 天</h3><div class="when">点某一天看明细</div>` +
-    keys.map(k => `<div class="row" data-day="${k}" style="cursor:pointer">
-        <span class="k">${monthDay(k)}</span>
-        <span class="v">${dayMap[k].steps ?? '--'} 步 · ${dayMap[k].sleep_hours ? dayMap[k].sleep_hours.toFixed(1) + ' h' : '--'}</span>
-      </div>`).join('');
-  $('#sheet').classList.add('on');
-  $('#mask').classList.add('on');
+  const html = keys.map(k => `<div class="row" data-k="${k}" style="cursor:pointer">
+      <span class="l">${md(k)} · ${wd(k)}</span>
+      <span class="r">${dayMap[k].steps ?? '--'} 步 · ${dayMap[k].sleep_hours ? dayMap[k].sleep_hours.toFixed(1) + 'h' : '--'}</span>
+    </div>`).join('');
+  $('#hero-home').insertAdjacentHTML('afterend',
+    `<div class="card" id="recent" style="margin-top:12px;cursor:default">
+       <div style="font-size:15px;font-weight:600;margin-bottom:6px">最近 7 天</div>
+       <div class="list" style="box-shadow:none">${html}</div>
+     </div>`);
+  $('#recent').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  $('#recent').querySelectorAll('[data-k]').forEach(el => el.addEventListener('click', () => {
+    selected = el.dataset.k; $('#recent').remove(); renderHome();
+  }));
+  setTimeout(() => $('#recent')?.remove(), 12000);
 });
 
-/* ---------- PWA ---------- */
-(function setupPWA() {
-  const link = document.createElement('link');
-  link.rel = 'manifest';
-  link.href = '/manifest.webmanifest?token=' + encodeURIComponent(TOKEN || '');
-  document.head.appendChild(link);
+/* ============ PWA ============ */
+(function () {
+  const l = document.createElement('link');
+  l.rel = 'manifest';
+  l.href = '/manifest.webmanifest?token=' + encodeURIComponent(TOKEN || '');
+  document.head.appendChild(l);
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
   }
 })();
 
-/* ---------- 启动 ---------- */
+/* ============ 启动 ============ */
 (async function init() {
   if (!TOKEN) {
-    $('#hero').innerHTML = `<div class="hero"><div class="empty">链接缺少口令。<br>请用带 ?token= 的完整链接打开</div></div>`;
+    $('#hero-home').innerHTML = `<div class="card hero"><div class="empty">链接缺少口令，请用带 ?token= 的完整链接打开</div></div>`;
     return;
   }
   try {
-    const start = iso(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 34));
+    const start = iso(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 45));
     const data = await fetchWarm(`/api/days?start=${start}&end=${TODAY}&token=${encodeURIComponent(TOKEN)}`);
     (data.days || []).forEach(d => { dayMap[d.day] = d; });
-    render();
+    // 默认选中「昨天」，没有数据就退回最近有数据的一天
+    if (!dayMap[selected]?.has_data) selected = latestDay() || selected;
+    renderHome();
+    const h = location.hash.replace('#', '');
+    if (h === 'hr' || h === 'act') nav(h);
   } catch (e) {
-    $('#hero').innerHTML = `<div class="hero"><div class="empty">${
+    $('#hero-home').innerHTML = `<div class="card hero"><div class="empty">${
       e.message === 'AUTH' ? '口令不对，请用完整链接打开' : '正在唤醒服务，稍后自动重试…'}</div></div>`;
     setTimeout(() => location.reload(), 8000);
   }
