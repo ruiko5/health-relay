@@ -6,6 +6,7 @@
   GET  /api/raw       最近的原始样本（调试用）
   GET  /              前端页面
 """
+import hashlib
 import json
 import os
 import re
@@ -648,6 +649,15 @@ def summary(request: Request, days: int = 7):
             "updated_at": _fmt_ts(updated) if updated else None}
 
 
+def _who(request: Request):
+    """访客标识：真实 IP + UA 的哈希（不存原始 IP，保护隐私）。"""
+    ip = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip() \
+        or (request.client.host if request.client else "?")
+    ua = request.headers.get("user-agent") or ""
+    raw = f"{ip}|{ua}|{os.getenv('VIEW_TOKEN', '')}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:10], ua
+
+
 @app.get("/api/days")
 def days_api(request: Request, start: str = "", end: str = ""):
     """任意日期区间的按天数据（日历 / 趋势图 / 当日详情都用这个）。
@@ -668,6 +678,13 @@ def days_api(request: Request, start: str = "", end: str = ""):
     if start_d > end_d:
         start_d, end_d = end_d, start_d
     start_d = max(start_d, end_d - datetime.timedelta(days=399))  # 最多 400 天
+
+    try:
+        who, ua = _who(request)
+        # day 记的是「访问发生的那天」，不是查询的数据起始日
+        STORE.log_visit(_now().strftime("%Y-%m-%d"), _fmt_ts(time.time()), who, ua)
+    except Exception as exc:  # noqa: BLE001  统计失败不影响看数据
+        print("[visit] log failed:", exc, flush=True)
 
     rows = _dedupe_sleep(STORE.range_rows(start_d.isoformat(), end_d.isoformat()))
     agg, recv = _aggregate(rows)
@@ -738,6 +755,34 @@ def days_api(request: Request, start: str = "", end: str = ""):
             "today": out[-1] if out else None, "days": out}
 
 
+@app.get("/api/visits")
+def visits_api(request: Request, days: int = 7):
+    """谁在什么时候看了数据（按天 + 按设备汇总）。"""
+    if not _token_ok(request, VIEW_TOKEN):
+        return JSONResponse({"ok": False, "error": "bad token"}, status_code=401)
+    now = _now()
+    start = (now - datetime.timedelta(days=days - 1)).strftime("%Y-%m-%d")
+    rows = STORE.visits(start, now.strftime("%Y-%m-%d"))
+
+    by_day = {}
+    for r in rows:
+        d = by_day.setdefault(r["day"], {})
+        w = d.setdefault(r["who"], {"n": 0, "first": r["ts"], "last": r["ts"], "ua": r["ua"]})
+        w["n"] += 1
+        w["last"] = r["ts"]
+        w["ua"] = r["ua"] or w["ua"]
+
+    out = []
+    for day in sorted(by_day, reverse=True):
+        devs = [{"who": k, "visits": v["n"],
+                 "first": str(v["first"])[11:16],
+                 "last": str(v["last"])[11:16],
+                 "ua": v["ua"]}
+                for k, v in sorted(by_day[day].items(), key=lambda kv: -kv[1]["n"])]
+        out.append({"day": day, "total": sum(x["visits"] for x in devs), "devices": devs})
+    return {"ok": True, "start": start, "end": now.strftime("%Y-%m-%d"), "days": out}
+
+
 @app.get("/api/export")
 def export_all(request: Request):
     """全量导出（部署前自动备份用）。"""
@@ -801,7 +846,7 @@ def demo(request: Request):
 @app.api_route("/healthz", methods=["GET", "HEAD"])
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-23T0430"}
+    return {"ok": True, "rev": "2026-11-23T0500"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -868,6 +913,7 @@ def apple_icon():
 @app.api_route("/", methods=["GET", "HEAD"])
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
 
 
 
