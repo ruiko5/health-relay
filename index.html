@@ -33,8 +33,8 @@
   .nav .back{display:flex;align-items:center;gap:2px;color:var(--blue);font-size:17px;
     background:none;border:none;padding:6px 2px;cursor:pointer}
   .nav .right{margin-left:auto}
-  .nav .gear{background:none;border:none;color:#8E8E93;padding:6px;cursor:pointer;display:flex}
-  h1.large{font-size:34px;font-weight:700;letter-spacing:-.7px;margin:8px 0 14px}
+  
+  h1.large{font-size:34px;font-weight:700;letter-spacing:-.7px;margin:6px 0 14px}
   h2.title{font-size:17px;font-weight:600;margin:0}
   .group-title{font-size:13px;color:var(--sub);text-transform:uppercase;letter-spacing:.4px;
     margin:22px 4px 8px;font-weight:500}
@@ -111,19 +111,6 @@
 
   <!-- ================= 主页 ================= -->
   <section class="view on" id="v-home">
-    <div class="nav">
-      <span style="width:36px"></span>
-      <button class="gear right" id="gear" aria-label="最近 7 天">
-        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-          stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/>
-          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33
-          1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 008 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0
-          11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6
-          9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0
-          001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65
-          1.65 0 0019.4 9v0a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-      </button>
-    </div>
     <h1 class="large">憨憨的健康数据</h1>
     <div class="strip" id="strip-home"></div>
     <div id="hero-home"></div>
@@ -219,7 +206,7 @@ async function fetchWarm(url, tries = 8) {
 /* ============ 组件 ============ */
 function dateStrip(el, onPick, days = 14) {
   const items = [];
-  for (let i = 0; i < days; i++) {
+  for (let i = days - 1; i >= 0; i--) {   // 升序：最左最早，最右今天
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
     items.push(iso(d));
   }
@@ -233,6 +220,8 @@ function dateStrip(el, onPick, days = 14) {
     </button>`;
   }).join('');
   el.querySelectorAll('[data-k]').forEach(b => b.addEventListener('click', () => onPick(b.dataset.k)));
+  // 默认滚到最右边（今天/昨天可见）
+  requestAnimationFrame(() => { el.scrollLeft = el.scrollWidth; });
 }
 
 function ringSVG(t, size = 130) {
@@ -451,25 +440,6 @@ function nav(view) {
 }
 $$('[data-back]').forEach(b => b.addEventListener('click', () => nav('home')));
 
-/* 最近 7 天列表（齿轮） */
-$('#gear').addEventListener('click', () => {
-  const keys = Object.keys(dayMap).filter(k => dayMap[k].has_data).sort().reverse().slice(0, 7);
-  const html = keys.map(k => `<div class="row" data-k="${k}" style="cursor:pointer">
-      <span class="l">${md(k)} · ${wd(k)}</span>
-      <span class="r">${dayMap[k].steps ?? '--'} 步 · ${dayMap[k].sleep_hours ? dayMap[k].sleep_hours.toFixed(1) + 'h' : '--'}</span>
-    </div>`).join('');
-  $('#hero-home').insertAdjacentHTML('afterend',
-    `<div class="card" id="recent" style="margin-top:12px;cursor:default">
-       <div style="font-size:15px;font-weight:600;margin-bottom:6px">最近 7 天</div>
-       <div class="list" style="box-shadow:none">${html}</div>
-     </div>`);
-  $('#recent').scrollIntoView({ behavior: 'smooth', block: 'center' });
-  $('#recent').querySelectorAll('[data-k]').forEach(el => el.addEventListener('click', () => {
-    selected = el.dataset.k; $('#recent').remove(); renderHome();
-  }));
-  setTimeout(() => $('#recent')?.remove(), 12000);
-});
-
 /* ============ PWA ============ */
 (function () {
   const l = document.createElement('link');
@@ -505,5 +475,7 @@ $('#gear').addEventListener('click', () => {
 </script>
 </body>
 </html>
+
+
 
 
