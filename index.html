@@ -425,7 +425,11 @@ function renderAct() {
     <div class="list">
       <div class="row"><span class="l">${svg('route')}步行距离</span><span class="r">${ex.walking_running_distance != null ? (Math.round(ex.walking_running_distance * 10) / 10) + ' 公里' : '--'}</span></div>
       <div class="row"><span class="l">${svg('stairs')}爬楼层数</span><span class="r">${ex.flights_climbed != null ? Math.round(ex.flights_climbed) + ' 层' : '--'}</span></div>
-      <div class="row"><span class="l">${svg('flame')}活动能量</span><span class="r">${ex.active_energy != null ? Math.round(ex.active_energy) + ' 千卡' : '--'}</span></div>
+      <div class="row"><span class="l">${svg('flame')}活动能量</span><span class="r">${(() => {
+        const base = ex.active_energy || 0, wo = t.workout_energy || 0;
+        if (!base && !wo) return '--';
+        return `${Math.round(base + wo)} 千卡` + (wo ? `（含运动 ${Math.round(wo)}）` : '');
+      })()}</span></div>
       <div class="row"><span class="l">${svg('timer')}锻炼时长</span><span class="r">${t.workout_minutes ? Math.round(t.workout_minutes) + ' 分钟' : '--'}</span></div>
     </div>`;
 }
@@ -475,6 +479,7 @@ $$('[data-back]').forEach(b => b.addEventListener('click', () => nav('home')));
 </script>
 </body>
 </html>
+
 
 
 
