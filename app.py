@@ -80,17 +80,31 @@ def _init_store():
 
 
 def _aggregate(rows):
-    """按 (day, metric) 聚合：sum / count / avg，并合并心率自带 min/max。
+    """按 (day, metric) 聚合。
 
-    SQL 只负责取原始行，聚合放在 Python 里做，SQLite 和 Postgres 共用一套逻辑。
+    同一天同一指标可能同时存在两种数据：
+      - 汇总行（ts 是当天 00:00:00）：HAE「默认/过去 7 天 + 汇总数据开」推的当天总值
+      - 原始样本（ts 是具体时刻）：关掉「汇总数据」后推的逐条读数
+    两者混在一起直接 SUM 会翻倍，所以这里**优先用原始样本**：
+    当天有原始样本就只用原始样本求和，否则才用汇总行。
     """
     days, hr_range, recv = {}, {}, {}
+
+    def bucket(r):
+        # ts 形如 "2026-11-22 00:00:00 +0800" 视为「汇总行」
+        return "agg" if " 00:00:00" in str(r.get("ts") or "") else "raw"
+
     for r in rows:
         day, metric, v = r["day"], r["metric"], r["value"]
         if v is not None:
-            a = days.setdefault(day, {}).setdefault(metric, {"sum": 0.0, "n": 0})
-            a["sum"] += v
-            a["n"] += 1
+            a = days.setdefault(day, {}).setdefault(
+                metric, {"raw": 0.0, "raw_n": 0, "agg": 0.0, "agg_n": 0,
+                         "min": None, "max": None})
+            k = bucket(r)
+            a[k] += v
+            a[k + "_n"] += 1
+            a["min"] = v if a["min"] is None else min(a["min"], v)
+            a["max"] = v if a["max"] is None else max(a["max"], v)
         if r.get("recv"):
             recv[day] = max(recv.get(day, 0), r["recv"])
         if metric == "heart_rate" and r.get("extra"):
@@ -104,9 +118,22 @@ def _aggregate(rows):
                 cur[0] = mn if cur[0] is None else min(cur[0], mn)
             if isinstance(mx, (int, float)):
                 cur[1] = mx if cur[1] is None else max(cur[1], mx)
+
+    for day, metrics in days.items():
+        for metric, a in metrics.items():
+            use_raw = a["raw_n"] > 0
+            a["sum"] = a["raw"] if use_raw else a["agg"]
+            a["n"] = a["raw_n"] if use_raw else a["agg_n"]
+            a.pop("raw", None); a.pop("raw_n", None)
+            a.pop("agg", None); a.pop("agg_n", None)
+
     for day, (mn, mx) in hr_range.items():
-        hr = days.setdefault(day, {}).setdefault("heart_rate", {"sum": 0.0, "n": 0})
-        hr["min"], hr["max"] = mn, mx
+        hr = days.setdefault(day, {}).setdefault(
+            "heart_rate", {"sum": 0.0, "n": 0, "min": None, "max": None})
+        if isinstance(mn, (int, float)):
+            hr["min"] = mn if hr.get("min") is None else min(hr["min"], mn)
+        if isinstance(mx, (int, float)):
+            hr["max"] = mx if hr.get("max") is None else max(hr["max"], mx)
     return days, recv
 
 
@@ -130,7 +157,10 @@ def _day_out(day: str, m: dict, recv: dict):
         "resting_hr": round(rhr["sum"] / rhr["n"]) if rhr and rhr.get("n") else None,
         "extras": extras,
         "updated_at": _fmt_ts(recv[day], "%Y-%m-%d %H:%M") if recv.get(day) else None,
-    }# ---------------------------------------------------------------- parsing
+    }
+
+
+# ---------------------------------------------------------------- parsing
 def today() -> str:
     return _now().strftime("%Y-%m-%d")
 
@@ -486,7 +516,7 @@ def demo(request: Request):
 @app.get("/healthz")
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-22T1445"}
+    return {"ok": True, "rev": "2026-11-22T1455"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -553,6 +583,8 @@ def apple_icon():
 @app.get("/")
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
+
 
 
 
