@@ -565,7 +565,7 @@ def demo(request: Request):
 @app.get("/healthz")
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-22T1750"}
+    return {"ok": True, "rev": "2026-11-22T1805"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -632,6 +632,7 @@ def apple_icon():
 @app.get("/")
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
 
 
 
