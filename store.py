@@ -59,6 +59,9 @@ class Store:
                 who TEXT NOT NULL,
                 ua  TEXT)""")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_visit_day ON visits(day)")
+            cur.execute("""CREATE TABLE IF NOT EXISTS devices(
+                who  TEXT PRIMARY KEY,
+                name TEXT NOT NULL)""")
             conn.commit()
         else:
             cur.execute("""CREATE TABLE IF NOT EXISTS samples(
@@ -85,6 +88,9 @@ class Store:
                 who TEXT NOT NULL,
                 ua  TEXT)""")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_visit_day ON visits(day)")
+            cur.execute("""CREATE TABLE IF NOT EXISTS devices(
+                who  TEXT PRIMARY KEY,
+                name TEXT NOT NULL)""")
             conn.commit()
         conn.close()
 
@@ -178,3 +184,26 @@ class Store:
         finally:
             conn.close()
         return [{"day": r[0], "ts": r[1], "who": r[2], "ua": r[3]} for r in rows]
+
+    def set_device_name(self, who: str, name: str):
+        conn = self.connect()
+        try:
+            cur = conn.cursor()
+            cur.execute("INSERT INTO devices(who, name) VALUES (%s, %s) "
+                        "ON CONFLICT (who) DO UPDATE SET name = EXCLUDED.name"
+                        if self.kind == "postgres"
+                        else "INSERT INTO devices(who, name) VALUES (?, ?) "
+                             "ON CONFLICT(who) DO UPDATE SET name = excluded.name",
+                        (who, name))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def device_names(self):
+        conn = self.connect()
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT who, name FROM devices")
+            return {r[0]: r[1] for r in cur.fetchall()}
+        finally:
+            conn.close()
