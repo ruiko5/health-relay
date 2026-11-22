@@ -764,6 +764,16 @@ def visits_api(request: Request, days: int = 7):
     start = (now - datetime.timedelta(days=days - 1)).strftime("%Y-%m-%d")
     rows = STORE.visits(start, now.strftime("%Y-%m-%d"))
 
+    # 过滤掉脚本/监控类访问（curl、python、uptime 机器人），只统计真人
+    def is_human(ua: str) -> bool:
+        u = (ua or "").lower()
+        if not u:
+            return False
+        return not any(k in u for k in ("curl/", "python-", "uptime", "bot", "monitor",
+                                        "wget", "httpclient", "okhttp/4.9.0 (curl)"))
+
+    rows = [r for r in rows if is_human(r.get("ua"))]
+
     by_day = {}
     for r in rows:
         d = by_day.setdefault(r["day"], {})
@@ -846,7 +856,7 @@ def demo(request: Request):
 @app.api_route("/healthz", methods=["GET", "HEAD"])
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-23T0500"}
+    return {"ok": True, "rev": "2026-11-23T0515"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -913,6 +923,7 @@ def apple_icon():
 @app.api_route("/", methods=["GET", "HEAD"])
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
 
 
 
