@@ -64,6 +64,7 @@
   .mcard .val small{font-size:12.5px;color:var(--muted);font-weight:500;margin-left:3px;letter-spacing:0}
   .mcard .sub{font-size:11.5px;color:var(--muted);margin-top:5px}
   .mcard.hero{padding:17px 17px 15px}
+  .mcard.wide{grid-column:1 / -1}
   .badge{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:none}
   .badge svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
   .badge.sleep{background:linear-gradient(140deg,#a3acff,#6c7cf0)}
@@ -71,6 +72,8 @@
   .badge.heart{background:linear-gradient(140deg,#ff9a9a,#e5484d)}
   .badge.energy{background:linear-gradient(140deg,#ffc078,#f2811f)}
   .badge.dist{background:linear-gradient(140deg,#7adbd4,#1fa79f)}
+  .badge.oxygen{background:linear-gradient(140deg,#7fb4ff,#2f6bd8)}
+  .badge.stress{background:linear-gradient(140deg,#ffd27a,#e8892b)}
   .notice{font-size:12.5px;line-height:1.65;color:var(--muted);background:var(--chip);
     border:1px solid var(--line);padding:13px 15px}
   .notice b{color:var(--ink);font-weight:600}
@@ -202,6 +205,9 @@ const EXTRA_META = {
   walking_asymmetry_percentage:{n:'步行不对称',u:'%'}, walking_double_support_percentage:{n:'双脚支撑',u:'%'},
   headphone_audio_exposure:{n:'耳机音量',u:'dB'}, heart_rate_variability:{n:'心率变异性',u:'ms'},
   apple_sleeping_wrist_temperature:{n:'腕温',u:'°C'}, vo2_max:{n:'最大摄氧量',u:''},
+  oxygen_saturation:{n:'血氧',u:'%'}, spo2:{n:'血氧',u:'%'},
+  stress:{n:'压力',u:''}, stress_level:{n:'压力',u:''}, pressure:{n:'压力',u:''},
+  resting_hr:{n:'静息心率',u:'bpm'},
 };
 
 const ICONS = {
@@ -209,7 +215,10 @@ const ICONS = {
   steps: '<ellipse cx="9" cy="8" rx="3" ry="4.2"/><ellipse cx="16" cy="16" rx="3" ry="4.2"/>',
   heart: '<path d="M12 20.3s-7-4.5-8.8-9A5.1 5.1 0 0112 7.7a5.1 5.1 0 018.8 3.6c-1.8 4.5-8.8 9-8.8 9z"/>',
   energy: '<path d="M12 3.2s4.7 4.6 4.7 8.5a4.7 4.7 0 11-9.4 0c0-1.9 1-3.2 2-4.1 0 1.8.9 2.9 1.9 2.9 0-2.9.8-5.6.8-7.3z"/>',
-  dist: '<path d="M6 18h6a3 3 0 000-6H9a3 3 0 010-6h6"/><circle cx="18" cy="6" r="1.8"/><circle cx="6" cy="18" r="1.8"/>'
+  dist: '<path d="M6 18h6a3 3 0 000-6H9a3 3 0 010-6h6"/><circle cx="18" cy="6" r="1.8"/><circle cx="6" cy="18" r="1.8"/>',
+  oxygen: '<path d="M12 3.2c3.2 4 5.2 6.6 5.2 9.1a5.2 5.2 0 11-10.4 0c0-2.5 2-5.1 5.2-9.1z"/>',
+  stress: '<path d="M3 14c2.2 0 2.6-6 4.8-6s2.6 8 4.8 8 2.6-4 4.4-4H21"/>',
+  stairs: '<path d="M4 20h4v-4h4v-4h4V8h4"/>'
 };
 
 const svgIcon = k => `<svg viewBox="0 0 24 24">${ICONS[k] || ''}</svg>`;
@@ -324,24 +333,36 @@ function renderToday(){
   const dayKey = t.day;
   const C = 2 * Math.PI * 32;
   const ex = t.extras || {};
-  const sp = ex.walking_running_distance, ae = ex.active_energy, bm = ex.basal_energy_burned;
-  const hasEnergy = (ae != null || bm != null);
-  const hasDist = (sp != null);
   const n1 = v => (v == null ? '--' : (v >= 100 ? Math.round(v).toLocaleString('zh-CN') : Math.round(v * 10) / 10));
+  const pick = (keys) => { for (const k of keys) if (ex[k] != null) return ex[k]; return null; };
 
-  const energyCard = hasEnergy ? `
-      <div class="mcard" data-day="${dayKey}">
-        <div class="top"><span class="badge energy">${svgIcon('energy')}</span><span class="nm">活动能量</span></div>
-        <div class="val">${n1(ae)}<small>千卡</small></div>
-        <div class="sub">基础代谢 ${n1(bm)} 千卡</div>
-      </div>` : '';
+  // 更多指标卡：只渲染当天有数据的
+  const MORE = [
+    { keys: ['oxygen_saturation', 'spo2', 'blood_oxygen'], nm: '血氧', unit: '%', icon: 'oxygen',
+      fmt: v => (v <= 1.5 ? Math.round(v * 100) : Math.round(v)), sub: v => (v >= 95 || v > 1.5 ? '正常范围' : '偏低') },
+    { keys: ['stress', 'stress_level', 'pressure', 'stress_avg'], nm: '压力', unit: '', icon: 'stress',
+      fmt: v => Math.round(v), sub: () => '越低越放松' },
+    { keys: ['active_energy'], nm: '活动能量', unit: '千卡', icon: 'energy',
+      fmt: v => Math.round(v), sub: () => (ex.basal_energy_burned != null ? `基础代谢 ${Math.round(ex.basal_energy_burned)} 千卡` : '') },
+    { keys: ['walking_running_distance'], nm: '步行距离', unit: '公里', icon: 'dist',
+      fmt: v => (Math.round(v * 10) / 10), sub: () => (ex.flights_climbed != null ? `爬楼 ${Math.round(ex.flights_climbed)} 层` : '当天累计') },
+    { keys: ['heart_rate_variability'], nm: '心率变异性', unit: 'ms', icon: 'heart', fmt: v => Math.round(v), sub: () => '' },
+  ];
 
-  const distCard = hasDist ? `
-      <div class="mcard" data-day="${dayKey}">
-        <div class="top"><span class="badge dist">${svgIcon('dist')}</span><span class="nm">步行距离</span></div>
-        <div class="val">${n1(sp)}<small>公里</small></div>
-        <div class="sub">${ex.flights_climbed != null ? `爬楼 ${Math.round(ex.flights_climbed)} 层` : '当天累计'}</div>
-      </div>` : '';
+  const moreCards = MORE.map(m => {
+    const v = pick(m.keys);
+    if (v == null) return '';
+    const sub = m.sub ? m.sub(v) : '';
+    return `<div class="mcard" data-day="${dayKey}">
+      <div class="top"><span class="badge ${m.icon === 'stairs' ? 'dist' : m.icon}">${svgIcon(m.icon)}</span><span class="nm">${m.nm}</span></div>
+      <div class="val">${m.fmt(v)}${m.unit ? `<small>${m.unit}</small>` : ''}</div>
+      ${sub ? `<div class="sub">${sub}</div>` : ''}
+    </div>`;
+  }).filter(Boolean);
+
+  const moreGrid = moreCards.length
+    ? `<div class="grid2">${moreCards.map((c, i) => (i === moreCards.length - 1 && moreCards.length % 2 === 1) ? c.replace('class="mcard"', 'class="mcard wide"') : c).join('')}</div>`
+    : '';
 
   $('#app').innerHTML = `
     ${isToday ? '' : `<div class="card notice" data-day="${dayKey}">
@@ -358,7 +379,7 @@ function renderToday(){
       <div class="row">
         <div>
           <div class="val" style="font-size:32px">${sh}<small>小时</small>${sm ? `<small style="margin-left:6px">${sm}</small>` : ''}</div>
-          <div class="sub">${diffTxt}</div>
+          <div class="sub">${diffTxt}${t.sleep_window ? ' · ' + clockOf(t.sleep_window[0]) + '–' + clockOf(t.sleep_window[1]) : ''}</div>
         </div>
         <div class="ring">
           <svg width="72" height="72" viewBox="0 0 76 76">
@@ -384,11 +405,11 @@ function renderToday(){
       <div class="mcard" data-day="${dayKey}">
         <div class="top"><span class="badge heart">${svgIcon('heart')}</span><span class="nm">心率</span></div>
         <div class="val">${t.hr_avg ?? '--'}<small>平均 bpm</small></div>
-        <div class="sub">区间 ${t.hr_min ?? '--'}–${t.hr_max ?? '--'} · 静息 ${t.resting_hr ?? '--'}</div>
+        <div class="sub">今日区间 ${t.hr_min ?? '--'} – ${t.hr_max ?? '--'} bpm</div>
       </div>
     </div>
 
-    ${(hasEnergy || hasDist) ? `<div class="grid2">${energyCard}${distCard}</div>` : ''}
+    ${moreGrid}
 
     ${trendCard()}
     ${calendarCard()}
@@ -536,7 +557,7 @@ function openSheet(key){
   if (rec.hr_avg != null) hrRows.push(row('平均心率', rec.hr_avg, 'bpm', 'var(--hr)'));
   if (rec.hr_min != null && rec.hr_max != null)
     hrRows.push(row('区间', `${rec.hr_min} – ${rec.hr_max}`, 'bpm', ''));
-  if (rec.resting_hr != null) hrRows.push(row('静息心率', rec.resting_hr, 'bpm', ''));
+
 
   /* 活动 */
   const actRows = [];
@@ -641,6 +662,11 @@ init();
 </script>
 </body>
 </html>
+
+
+
+
+
 
 
 
