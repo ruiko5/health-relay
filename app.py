@@ -691,7 +691,12 @@ def days_api(request: Request, start: str = "", end: str = ""):
         se = sleep_extra.get(day) or {}
         item["sleep_stages"] = se.get("stages") or {}
         item["sleep_window"] = se.get("window")
-        item["workouts"] = workout_sessions.get(day, [])
+        sessions = workout_sessions.get(day, [])
+        item["workouts"] = sessions
+        # 运动消耗（来自每次训练），前端把它加到「活动能量」上
+        item["workout_energy"] = round(sum(
+            (s.get("energy") or 0) for s in sessions if isinstance(s.get("energy"), (int, float))
+        ), 1) if sessions else 0
         out.append(item)
     return {"ok": True, "start": start_d.isoformat(), "end": end_d.isoformat(),
             "today": out[-1] if out else None, "days": out}
@@ -760,7 +765,7 @@ def demo(request: Request):
 @app.api_route("/healthz", methods=["GET", "HEAD"])
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-23T0235"}
+    return {"ok": True, "rev": "2026-11-23T0250"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -827,6 +832,7 @@ def apple_icon():
 @app.api_route("/", methods=["GET", "HEAD"])
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
 
 
 
