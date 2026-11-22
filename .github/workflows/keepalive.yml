@@ -1,0 +1,16 @@
+name: keep-alive
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          for i in 1 2 3; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 100 https://health-relay-odbf.onrender.com/healthz || true)
+            [ "$code" = "200" ] && exit 0
+            sleep 25
+          done
+          exit 1
