@@ -221,7 +221,7 @@ def _day_out(day: str, m: dict, recv: dict):
     workout = m.get("workout")
     extras = {}
     for k, v in m.items():
-        if k in ("steps", "sleep", "heart_rate", "resting_hr", "workout"):
+        if k in ("steps", "sleep", "heart_rate", "resting_hr", "workout", "sleep_seg"):
             continue
         extras[k] = round(v["sum"], 1)
     return {
@@ -607,17 +607,29 @@ def _fold_daily(samples):
             value = sum(vals)
             stages = {}
             window = None
-            for _, ex in unseen:
+            segments = []
+            for i, ex in unseen:
                 for k, v in (ex.get("stages") or {}).items():
                     if isinstance(v, (int, float)):
                         stages[k] = round(stages.get(k, 0) + v, 2)
                 w = ex.get("window")
                 if isinstance(w, list) and len(w) == 2:
                     window = ([min(window[0], w[0]), max(window[1], w[1])] if window else w)
+                    segments.append({"start": w[0], "end": w[1],
+                                     "hours": round(i["value"] or 0, 2)})
             if stages:
                 extra["stages"] = stages
             if window:
                 extra["window"] = window
+            if len(segments) > 1:
+                # 多段睡眠：按开始时间排序，前端可以逐段展示
+                seg_sorted = sorted(segments, key=lambda s: str(s["start"]))
+                extra["segments"] = seg_sorted
+                # 另存一份到 sleep_seg：这样即使「汇总」那次推送把 sleep 行覆盖了，
+                # 分段信息也不会丢
+                out.append(("sleep_seg", day, ts, len(seg_sorted),
+                            json.dumps({"segments": seg_sorted, "window": window},
+                                       ensure_ascii=False), time.time()))
         else:
             vals = [i["value"] for i in items if i["value"] is not None]
             if not vals:
@@ -729,6 +741,25 @@ def days_api(request: Request, start: str = "", end: str = ""):
         se = sleep_extra.get(day) or {}
         item["sleep_stages"] = se.get("stages") or {}
         item["sleep_window"] = se.get("window")
+        item["sleep_segments"] = se.get("segments") or []
+        seg_row = next((r for r in rows if r["metric"] == "sleep_seg" and r.get("day") == day), None)
+        if seg_row and seg_row.get("extra"):
+            try:
+                sx = json.loads(seg_row["extra"])
+                if sx.get("segments"):
+                    item["sleep_segments"] = sx["segments"]
+                if sx.get("window"):
+                    item["sleep_window"] = sx["window"]
+            except (TypeError, ValueError):
+                pass
+        # 在床跨度 vs 实际睡着：差出来的就是中间醒着的时间
+        if se.get("window") and item.get("sleep_hours"):
+            try:
+                span = _hours(se["window"][0], se["window"][1]) or 0
+                item["sleep_span_hours"] = round(span, 2)
+                item["sleep_awake_gap"] = round(max(0.0, span - item["sleep_hours"]), 2)
+            except Exception:  # noqa: BLE001
+                pass
         sessions = workout_sessions.get(day, [])
         item["workouts"] = sessions
         # 当天心率的小时序列（前端画一天内波动曲线用）
@@ -869,7 +900,7 @@ def demo(request: Request):
 @app.api_route("/healthz", methods=["GET", "HEAD"])
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-23T0540"}
+    return {"ok": True, "rev": "2026-11-23T0600"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -936,6 +967,7 @@ def apple_icon():
 @app.api_route("/", methods=["GET", "HEAD"])
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
 
 
 
