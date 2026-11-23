@@ -31,7 +31,9 @@ BASE = Path(__file__).parent
 TZ = datetime.timezone(datetime.timedelta(hours=8))
 # vivo 健康写进 Apple Health 的睡眠时间比实际早 8 小时（实测 20:35-03:39 被写成 04:35-11:39），
 # 这里统一往回挪，可用环境变量 SLEEP_SHIFT_HOURS 覆盖（设为 0 即不纠正）。
-SLEEP_SHIFT_HOURS = float(os.getenv("SLEEP_SHIFT_HOURS", "0"))   # 你的睡眠时间是对的，默认不偏移
+SLEEP_SHIFT_HOURS = float(os.getenv("SLEEP_SHIFT_HOURS", "0"))
+# 单次推送体积上限（MB→字节）；超过就直接 413，避免 OOM
+MAX_INGEST_BYTES = int(os.getenv("MAX_INGEST_MB", "24")) * 1024 * 1024   # 你的睡眠时间是对的，默认不偏移
 
 
 def _shift_time(ts, hours: float):
@@ -495,6 +497,19 @@ async def ingest(request: Request):
               f"expect_len={len(INGEST_TOKEN)} headers={sorted(request.headers.keys())}",
               flush=True)
         return JSONResponse({"ok": False, "error": "bad token"}, status_code=401)
+    # 体积保护：Render 免费实例只有 512MB 内存，超大包会直接把实例打挂（表现为超时/502）。
+    # 这里提前拒绝，并给出可操作的中文提示，避免 App 端只看到「请求超时」。
+    cl = request.headers.get("content-length")
+    if cl and cl.isdigit() and int(cl) > MAX_INGEST_BYTES:
+        mb = int(cl) / 1024 / 1024
+        print(f"[ingest] rejected {mb:.1f}MB (> {MAX_INGEST_BYTES // 1024 // 1024}MB)", flush=True)
+        return JSONResponse(
+            {"ok": False, "error": "payload too large",
+             "hint": f"这次推送 {mb:.0f}MB 太大了。请把日期范围拆小（每次 3~7 天）"
+                     f"或在 App 里打开「批量请求」/「汇总数据」再试。"},
+            status_code=413)
+
+    t0 = time.time()
     try:
         payload = await request.json()
     except Exception:
@@ -512,7 +527,8 @@ async def ingest(request: Request):
     if samples:
         folded = _fold_daily(samples)
         STORE.upsert(folded)
-        print(f"[ingest] {len(samples)} samples -> {len(folded)} daily rows", flush=True)
+        print(f"[ingest] {len(samples)} samples -> {len(folded)} rows "
+              f"in {time.time() - t0:.1f}s", flush=True)
     return {"ok": True, "stored": len(samples),
             "folded": len(_fold_daily(samples)) if samples else 0,
             "metrics": sorted({s["metric"] for s in samples})}
@@ -900,7 +916,7 @@ def demo(request: Request):
 @app.api_route("/healthz", methods=["GET", "HEAD"])
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-23T0600"}
+    return {"ok": True, "rev": "2026-11-23T1915"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -967,6 +983,7 @@ def apple_icon():
 @app.api_route("/", methods=["GET", "HEAD"])
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
 
 
 
