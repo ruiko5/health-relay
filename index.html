@@ -539,7 +539,12 @@ function renderHome() {
 
     tile('bed', '#AF52DE', '睡眠',
       t.sleep_hours != null ? t.sleep_hours.toFixed(1) : '--', '小时',
-      t.sleep_window ? `${clock(t.sleep_window[0])}–${clock(t.sleep_window[1])}` : '暂无数据', ''),
+      !t.sleep_window ? '暂无数据'
+        : (t.sleep_segments && t.sleep_segments.length > 1)
+          ? `分 ${t.sleep_segments.length} 段 · ${clock(t.sleep_window[0])}–${clock(t.sleep_window[1])}`
+          : (t.sleep_awake_gap >= 0.5
+              ? `${clock(t.sleep_window[0])}–${clock(t.sleep_window[1])} · 中间醒 ${t.sleep_awake_gap.toFixed(1)}h`
+              : `${clock(t.sleep_window[0])}–${clock(t.sleep_window[1])}`), ''),
 
     tile('shoe', '#34C759', '步数',
       t.steps != null ? t.steps.toLocaleString('zh-CN') : '--', '步',
@@ -715,6 +720,15 @@ function openDaySheet(key) {
     const w = r.sleep_window;
     rows.push(row('bed', '睡眠', `${Math.floor(r.sleep_hours)}小时${Math.round((r.sleep_hours % 1) * 60)}分`
       + (w ? ` · ${clock(w[0])}–${clock(w[1])}` : '')));
+    if (r.sleep_segments && r.sleep_segments.length > 1) {
+      r.sleep_segments.forEach((s, i) => {
+        rows.push(row('bed', `第 ${i + 1} 段`,
+          `${clock(s.start)}–${clock(s.end)} · ${Math.round(s.hours * 60)} 分钟`));
+      });
+    } else if (r.sleep_awake_gap >= 0.5 && w) {
+      rows.push(row('timer', '中间清醒',
+        `约 ${r.sleep_awake_gap.toFixed(1)} 小时（在床 ${r.sleep_span_hours.toFixed(1)} 小时）`));
+    }
   }
   if (r.hr_avg != null) rows.push(row('heart', '心率', `${r.hr_avg} 次/分（${r.hr_min ?? '--'}–${r.hr_max ?? '--'}）`));
   if (r.steps != null) rows.push(row('shoe', '步数', `${r.steps.toLocaleString('zh-CN')} 步`));
