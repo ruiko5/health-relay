@@ -257,7 +257,7 @@ const clock = s => { const m = String(s || '').match(/(\d{2}):(\d{2})/); return 
 
 const GOALS = { energy: 300, steps: 6000, move: 30 };
 const dayMap = {};
-let selected = iso(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)); // 默认昨天
+let selected = TODAY;   // 默认显示今天
 
 const ICONS = {
   heart:'<path d="M12 20.3s-7-4.5-8.8-9A5.1 5.1 0 0112 7.7a5.1 5.1 0 018.8 3.6c-1.8 4.5-8.8 9-8.8 9z"/>',
