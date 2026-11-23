@@ -842,77 +842,116 @@ $('#mask').addEventListener('click', () => {
 })();
 
 /* ============ 启动 ============ */
-(async function init() {
-  if (!TOKEN) {
-    const hint = t.has_data ? '' :
-    `<div class="card" style="margin-bottom:12px;cursor:default;padding:12px 14px">
-       <div style="font-size:13.5px;color:#8E8E93">${md(t.day)} 这天还没有同步到数据</div>
-     </div>`;
+function bannerHome(msg) {
+  const el = $('#hero-home');
+  if (el) el.innerHTML = `<div class="card hero" style="cursor:default"><div class="empty">${msg}</div></div>`;
+  const g = $('#grid-home');
+  if (g) g.innerHTML = '';
+}
 
-  $('#hero-home').innerHTML = hint + `<div class="card hero" data-day="${t.day}"><div class="empty">链接缺少口令，请用带 ?token= 的完整链接打开</div></div>`;
+async function loadData(tries = 1) {
+  const start = iso(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 60));
+  const data = await fetchWarm(`/api/days?start=${start}&end=${TODAY}&token=${encodeURIComponent(TOKEN)}`, tries);
+  (data.days || []).forEach(d => { dayMap[d.day] = d; });
+  return data;
+}
+
+function renderCurrent() {
+  const id = document.querySelector('.view.on')?.id;
+  if (id === 'v-hr') return renderHR();
+  if (id === 'v-act') return renderAct();
+  return renderHome();
+}
+
+function applyDeepLinks(params) {
+  const h = location.hash.replace('#', '');
+  if (h === 'hr' || h === 'act') nav(h);
+
+  const dotN = params.get('dot');
+  if (dotN) (function () {
+    document.querySelectorAll('.chart-tip').forEach(t => { t.style.transition = 'none'; });
+    const d = document.querySelectorAll('.chart-dot')[Number(dotN)];
+    if (!d) return;
+    d.classList.add('on');
+    const c = d.querySelector('.pt');
+    const wrap = d.closest('.chart-wrap');
+    const tip = wrap?.querySelector('.chart-tip');
+    if (!tip || !c) return;
+    const r = c.getBoundingClientRect(), b = wrap.getBoundingClientRect();
+    tip.innerHTML = c.dataset.tip || '';
+    tip.style.left = Math.max(52, Math.min(r.left - b.left + r.width / 2, b.width - 52)) + 'px';
+    tip.style.top = (r.top - b.top) + 'px';
+    tip.classList.add('on');
+  })();
+
+  if (params.get('sheet') === '1') {
+    const el = document.querySelector('#day');
+    if (el) { el.style.transition = 'none'; openDaySheet(selected); }
+  }
+  if (params.get('cal') === '1') {
+    const el = document.querySelector('#cal');
+    if (el) { el.style.transition = 'none'; openCalendar(); }
+  }
+}
+
+/** 可见时每 30 秒静默拉一次；切回前台也立刻拉一次（不刷新页面） */
+function startSilentRefresh() {
+  if (window.__silentStarted) return;
+  window.__silentStarted = true;
+
+  const pull = async () => {
+    if (document.visibilityState !== 'visible') return;
+    try {
+      await loadData(1);
+      if (!dayMap[selected]) selected = latestDay() || selected;
+      renderCurrent();
+    } catch (e) { /* 静默失败，等下一轮 */ }
+  };
+
+  setInterval(pull, 30000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') pull();
+  });
+}
+
+(function init() {
+  const params = new URLSearchParams(location.search);
+
+  if (!TOKEN) {
+    bannerHome('链接缺少口令，请用带 ?token= 的完整链接打开');
     return;
   }
-  try {
-    const start = iso(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 60));
-    const data = await fetchWarm(`/api/days?start=${start}&end=${TODAY}&token=${encodeURIComponent(TOKEN)}`);
-    (data.days || []).forEach(d => { dayMap[d.day] = d; });
-    // 深链：?d=2026-11-20 直接定位到某一天
-    const dq = new URLSearchParams(location.search).get('d');
-    if (dq && /^\d{4}-\d{2}-\d{2}$/.test(dq)) selected = dq;
-    // 默认选中「昨天」；如果昨天没数据但更早有，也别偷偷换天（交给页面显示"这天没有数据"）
-    if (!dayMap[selected]) selected = latestDay() || selected;
-    renderHome();
-    const h = location.hash.replace('#', '');
-    if (h === 'hr' || h === 'act') nav(h);
-    // 深链：?dot=N 自动点开第 N 个数据点（排查用）
-    const dotN = new URLSearchParams(location.search).get('dot');
-    if (dotN) (function () {
-      document.querySelectorAll('.chart-tip').forEach(t => { t.style.transition = 'none'; });
-      const d = document.querySelectorAll('.chart-dot')[Number(dotN)];
-      if (d) {
-        d.classList.add('on');
-        const c = d.querySelector('.pt');
-        const tip = d.closest('.chart-wrap')?.querySelector('.chart-tip');
-        const wrap = d.closest('.chart-wrap');
-        if (tip && wrap) {
-          const r = c.getBoundingClientRect(), b = wrap.getBoundingClientRect();
-          tip.innerHTML = c.dataset.tip || 'no tip';
-          tip.style.left = (r.left - b.left + r.width / 2) + 'px';
-          tip.style.top = (r.top - b.top) + 'px';
-          tip.classList.add('on');
-        }
-      }
-    })();
-    // 深链：?sheet=1 直接打开当天明细（排查用）
-    if (new URLSearchParams(location.search).get('sheet') === '1') {
-      const el = document.querySelector('#day');
-      if (el) el.style.transition = 'none';
-      document.querySelector('#mask').style.transition = 'none';
-      openDaySheet(selected);
-    }
-    // 深链：?cal=1 直接打开日期选择器（排查/分享用）
-    if (new URLSearchParams(location.search).get('cal') === '1') {
-      document.querySelector('#cal').style.transition = 'none';
-      document.querySelector('#mask').style.transition = 'none';
-      openCalendar();
-    }
-  } catch (e) {
-    const hint = t.has_data ? '' :
-    `<div class="card" style="margin-bottom:12px;cursor:default;padding:12px 14px">
-       <div style="font-size:13.5px;color:#8E8E93">${md(t.day)} 这天还没有同步到数据</div>
-     </div>`;
 
-    const auth = e.message === 'AUTH';
-    $('#hero-home').innerHTML = hint + `<div class="card hero" data-day="${t.day}"><div class="empty">${
-      auth ? '口令不对，请用带 ?token= 的完整链接打开' : '正在唤醒服务，稍后自动重试…'}</div></div>`;
-    if (auth) return;                    // 口令错了刷新多少次都没用
-    const n = Number(sessionStorage.getItem('wakeN') || 0);
-    if (n < 5) {                         // 最多重试 5 次，间隔逐步拉长
-      sessionStorage.setItem('wakeN', String(n + 1));
-      setTimeout(() => location.reload(), 5000 + n * 3000);
+  // 深链：?d=2026-11-20 直接定位到某一天
+  const dq = params.get('d');
+  if (dq && /^\d{4}-\d{2}-\d{2}$/.test(dq)) selected = dq;
+
+  let tries = 0;
+  async function attempt(first) {
+    try {
+      await loadData(first ? 3 : 1);
+      if (!dayMap[selected]) selected = latestDay() || selected;
+      renderCurrent();
+      if (first) applyDeepLinks(params);
+      startSilentRefresh();
+    } catch (e) {
+      if (e.message === 'AUTH') {
+        bannerHome('口令不对，请用带 ?token= 的完整链接打开');
+        return;
+      }
+      tries++;
+      if (first && !Object.keys(dayMap).length) {
+        bannerHome(tries <= 1 ? '数据同步中…' : '服务正在唤醒，约 30 秒后自动出现数据');
+      }
+      // 不刷新页面，只在原地重试（最多约 3 分钟）
+      if (tries < 45) setTimeout(() => attempt(false), 4000);
+      else if (!Object.keys(dayMap).length) bannerHome('服务暂时没响应，请稍后再打开');
     }
   }
+
+  attempt(true);
 })();
+
 </script>
 </body>
 </html>
