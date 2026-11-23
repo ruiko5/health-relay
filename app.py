@@ -828,7 +828,8 @@ def visits_api(request: Request, days: int = 7):
         if not u:
             return False
         return not any(k in u for k in ("curl/", "python-", "uptime", "bot", "monitor",
-                                        "wget", "httpclient", "okhttp/4.9.0 (curl)"))
+                                        "wget", "httpclient", "headless", "playwright",
+                                        "puppeteer", "slurp"))
 
     rows = [r for r in rows if is_human(r.get("ua"))]
 
@@ -916,7 +917,7 @@ def demo(request: Request):
 @app.api_route("/healthz", methods=["GET", "HEAD"])
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-23T1950"}
+    return {"ok": True, "rev": "2026-11-23T2000"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -983,6 +984,7 @@ def apple_icon():
 @app.api_route("/", methods=["GET", "HEAD"])
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
 
 
 
