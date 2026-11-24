@@ -8,6 +8,7 @@
 """
 import hashlib
 import json
+import secrets
 import os
 import re
 import datetime
@@ -707,10 +708,15 @@ def days_api(request: Request, start: str = "", end: str = ""):
         start_d, end_d = end_d, start_d
     start_d = max(start_d, end_d - datetime.timedelta(days=399))  # 最多 400 天
 
+    # 设备识别：优先用长期 cookie（IP 变了也能认出是同一台设备），没有就新发一个
+    dev = (request.cookies.get("hr_dev") or "").strip()
+    new_dev = False
+    if len(dev) < 6:
+        dev = secrets.token_hex(5)
+        new_dev = True
     try:
-        who, ua = _who(request)
-        # day 记的是「访问发生的那天」，不是查询的数据起始日
-        STORE.log_visit(_now().strftime("%Y-%m-%d"), _fmt_ts(time.time()), who, ua)
+        STORE.log_visit(_now().strftime("%Y-%m-%d"), _fmt_ts(time.time()),
+                        dev, request.headers.get("user-agent") or "")
     except Exception as exc:  # noqa: BLE001  统计失败不影响看数据
         print("[visit] log failed:", exc, flush=True)
 
@@ -798,8 +804,11 @@ def days_api(request: Request, start: str = "", end: str = ""):
             (s.get("energy") or 0) for s in sessions if isinstance(s.get("energy"), (int, float))
         ), 1) if sessions else 0
         out.append(item)
-    return {"ok": True, "start": start_d.isoformat(), "end": end_d.isoformat(),
-            "today": out[-1] if out else None, "days": out}
+    resp = JSONResponse({"ok": True, "start": start_d.isoformat(), "end": end_d.isoformat(),
+                         "today": out[-1] if out else None, "days": out})
+    if new_dev:
+        resp.set_cookie("hr_dev", dev, max_age=63072000, path="/", samesite="lax")
+    return resp
 
 
 @app.post("/api/devices/name")
@@ -917,7 +926,7 @@ def demo(request: Request):
 @app.api_route("/healthz", methods=["GET", "HEAD"])
 def healthz():
     # rev 用来确认线上跑的是哪一版（排查部署是否生效）
-    return {"ok": True, "rev": "2026-11-23T2000"}
+    return {"ok": True, "rev": "2026-11-24T1415"}
 
 
 # ---------------------------------------------------------------- PWA
@@ -984,6 +993,7 @@ def apple_icon():
 @app.api_route("/", methods=["GET", "HEAD"])
 def index():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
+
 
 
 
